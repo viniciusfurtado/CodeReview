@@ -57,7 +57,7 @@ export default async function HomePage() {
         <span className="mb-4 inline-flex items-center rounded-full border border-border bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
           Revisão de código automatizada
         </span>
-        <h1 className="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
+        <h1 className="font-display text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
           AI Code Review — Automatizado com Inteligência
         </h1>
         <p className="mt-6 max-w-2xl text-lg text-muted-foreground">
