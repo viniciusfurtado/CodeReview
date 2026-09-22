@@ -1,0 +1,20 @@
+[Unit]
+Description=CLI Proxy - Ponte HTTP para Claude/Agy CLI
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/cli-proxy
+Environment=PROXY_API_KEY=sua-chave-secreta-aqui
+Environment=CLAUDE_CLI_CMD=claude
+Environment=AGY_CLI_CMD=agy
+Environment=PROXY_PORT=8787
+Environment=CLI_TIMEOUT=120
+ExecStart=/usr/bin/python3 server.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+
