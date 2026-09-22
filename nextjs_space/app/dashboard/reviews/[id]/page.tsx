@@ -72,7 +72,7 @@ export default async function ReviewDetailPage({
   const review = await prisma.pullRequestReview.findUnique({
     where: { id },
     include: {
-      repository: true,
+      repository: { include: { organization: true } },
       findings: { orderBy: { createdAt: 'asc' } },
     },
   });
@@ -84,6 +84,18 @@ export default async function ReviewDetailPage({
   const badge = statusBadge(review.status as string);
   const canRun =
     review.status === 'PENDING' || review.status === 'FAILED';
+
+  // Não expor o motor de IA interno (provedor/modelo) do modo SERVICE ao
+  // cliente — apenas indicar se foi a IA gerenciada pelo serviço ou a chave
+  // própria da organização (BYOK), que é a origem que o próprio cliente escolheu.
+  const analyzedWithLabel =
+    review.repository.organization.llmMode === 'BYOK'
+      ? review.llmProvider === 'ANTHROPIC'
+        ? 'Claude (Anthropic) · sua chave'
+        : review.llmProvider === 'OPENROUTER'
+          ? 'OpenRouter · sua chave'
+          : 'Chave própria'
+      : 'IA Serviço (Créditos)';
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -156,12 +168,11 @@ export default async function ReviewDetailPage({
             {review.llmProvider && (
               <p className="text-xs text-muted-foreground">
                 Analisado com{' '}
-                <span className="font-medium">
-                  {review.llmProvider === 'ANTHROPIC'
-                    ? 'Claude API'
-                    : 'OpenRouter'}
-                </span>
-                {review.llmModel ? ` · ${review.llmModel}` : ''}
+                <span className="font-medium">{analyzedWithLabel}</span>
+                {review.repository.organization.llmMode === 'BYOK' &&
+                review.llmModel
+                  ? ` · ${review.llmModel}`
+                  : ''}
               </p>
             )}
             {review.status === 'COMPLETED' && (

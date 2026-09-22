@@ -57,9 +57,10 @@ export async function PATCH(
         { status: 400 }
       );
     }
-    // Regra de negócio: no modo SERVICE, o Claude (fallback premium na VPS)
+    // Regra de negócio: no modo SERVICE, o motor pago (fallback premium)
     // só é acionado quando há créditos. No modo BYOK a organização usa a
-    // própria chave e paga o provedor diretamente (sem créditos).
+    // própria chave e paga o provedor diretamente (sem créditos). O nome do
+    // motor pago não é exposto ao cliente — apenas "IA Serviço (Créditos)".
     if (
       effectiveMode !== 'BYOK' &&
       isPaidProvider(body.llmProvider as ProviderId)
@@ -72,7 +73,7 @@ export async function PATCH(
         return NextResponse.json(
           {
             error:
-              'O Claude é um recurso pago. Adquira créditos ou utilize a sua própria chave (modo BYOK).',
+              'Este recurso é pago. Adquira créditos ou utilize a sua própria chave (Chave Própria).',
           },
           { status: 402 }
         );

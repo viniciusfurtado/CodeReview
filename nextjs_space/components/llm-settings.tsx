@@ -87,12 +87,9 @@ export function LlmSettings({
     // premium na VPS é acionado automaticamente quando há créditos).
     const effectiveProvider: ProviderId =
       mode === 'SERVICE' ? 'OPENROUTER' : provider;
-    const effectiveModel =
-      mode === 'SERVICE'
-        ? orModelChoice === CUSTOM
-          ? orCustom.trim() || null
-          : orModelChoice || null
-        : resolveModel();
+    // No modo SERVICE o motor é escolhido automaticamente pelo serviço; não
+    // expomos seleção de modelo ao cliente.
+    const effectiveModel = mode === 'SERVICE' ? null : resolveModel();
 
     setSaving(true);
     try {
@@ -151,9 +148,9 @@ export function LlmSettings({
         >
           <Server className="mt-0.5 h-4 w-4 shrink-0" />
           <span className="text-xs">
-            <span className="block text-sm font-medium">IA do serviço</span>
-            OpenRouter gratuito com failover automático; fallback premium
-            (Claude/agy na VPS) quando há créditos.
+            <span className="block text-sm font-medium">IA Serviço (Créditos)</span>
+            Motor de análise gerenciado pelo serviço, com alta disponibilidade
+            automática. Consome créditos da organização quando necessário.
           </span>
         </button>
         <button
@@ -167,9 +164,9 @@ export function LlmSettings({
         >
           <KeyRound className="mt-0.5 h-4 w-4 shrink-0" />
           <span className="text-xs">
-            <span className="block text-sm font-medium">Chave própria (BYOK)</span>
-            Use a sua chave de OpenRouter ou Claude. Você paga o provedor
-            diretamente, sem consumir créditos.
+            <span className="block text-sm font-medium">Chave Própria</span>
+            Use a sua própria chave de API. Você paga o provedor diretamente,
+            sem consumir créditos.
           </span>
         </button>
       </div>
@@ -177,45 +174,11 @@ export function LlmSettings({
       {mode === 'SERVICE' ? (
         <div className="space-y-4">
           <p className="text-xs text-muted-foreground">
-            A análise usa o <strong>OpenRouter</strong> com modelos gratuitos de
-            alto desempenho em código. Em caso de instabilidade ou alta latência,
-            o serviço tenta automaticamente os demais modelos gratuitos e, se
-            houver créditos, o <strong>Claude/agy hospedado na VPS</strong>.
+            A análise é executada pela infraestrutura de IA do serviço, com
+            redundância automática entre múltiplos motores para garantir alta
+            disponibilidade. Quando necessário, um motor adicional é acionado
+            automaticamente, consumindo créditos da organização.
           </p>
-          <div className="space-y-1.5">
-            <Label htmlFor={`ormodel-${orgId}`}>
-              Modelo gratuito preferido
-            </Label>
-            <Select value={orModelChoice} onValueChange={setOrModelChoice}>
-              <SelectTrigger id={`ormodel-${orgId}`}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {OPENROUTER_FREE_MODELS.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.label}
-                  </SelectItem>
-                ))}
-                <SelectItem value={CUSTOM}>Outro (personalizado)...</SelectItem>
-              </SelectContent>
-            </Select>
-            {orModelChoice === CUSTOM && (
-              <Input
-                value={orCustom}
-                onChange={(e) => setOrCustom(e.target.value)}
-                placeholder="ex.: deepseek/deepseek-r1:free"
-              />
-            )}
-            <p className="text-xs text-muted-foreground">
-              Os demais modelos gratuitos servem como fallback automático deste.
-            </p>
-          </div>
-          <div className="rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">Fallback premium:</span>{' '}
-            {hasCredits
-              ? 'ativo — Claude/agy na VPS serão usados como reserva de alta disponibilidade (consome 1 crédito por análise premium).'
-              : 'inativo — adquira créditos para habilitar o Claude/agy na VPS como reserva de alta disponibilidade.'}
-          </div>
         </div>
       ) : (
         <div className="space-y-4">
