@@ -243,6 +243,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user }: any) {
       if (user) {
         token.userId = user.id;
+        token.githubLogin = user.githubLogin ?? null;
       }
       if (token.userId && !token.primaryOrgId) {
         const membership = await prisma.organizationMember.findFirst({
@@ -258,6 +259,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user) {
         session.user.userId = (token.userId as string) ?? null;
         session.user.primaryOrgId = (token.primaryOrgId as string) ?? null;
+        session.user.githubLogin = (token.githubLogin as string) ?? null;
       }
       return session;
     },

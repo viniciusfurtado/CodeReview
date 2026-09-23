@@ -35,6 +35,8 @@ export default async function DashboardLayout({
 
   const name = session.user?.name;
   const image = session.user?.image;
+  const githubLogin = (session.user as any)?.githubLogin as string | null;
+  const displayName = name ?? (githubLogin ? `@${githubLogin}` : 'Usuário');
 
   return (
     <div className="flex min-h-screen">
@@ -73,7 +75,7 @@ export default async function DashboardLayout({
             {image ? (
               <Image
                 src={image}
-                alt={name ?? 'Avatar'}
+                alt={displayName}
                 width={32}
                 height={32}
                 className="rounded-full"
@@ -82,7 +84,7 @@ export default async function DashboardLayout({
               <div className="h-8 w-8 rounded-full bg-secondary" />
             )}
             <span className="hidden text-sm font-medium sm:inline">
-              {name ?? 'Usuário'}
+              {displayName}
             </span>
             <SignOutButton />
           </div>
