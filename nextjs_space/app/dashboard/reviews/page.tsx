@@ -152,7 +152,7 @@ export default async function ReviewsPage() {
                             alt={review.author}
                             width={16}
                             height={16}
-                            className="rounded-full"
+                            className="h-4 w-4 rounded-full"
                           />
                         ) : null}
                         {review.author}

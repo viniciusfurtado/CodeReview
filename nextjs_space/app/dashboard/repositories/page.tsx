@@ -74,7 +74,7 @@ export default async function RepositoriesPage() {
                   alt={org.githubLogin}
                   width={32}
                   height={32}
-                  className="rounded-md"
+                  className="h-8 w-8 rounded-md"
                 />
               ) : (
                 <div className="h-8 w-8 rounded-md bg-secondary" />

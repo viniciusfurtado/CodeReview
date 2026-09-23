@@ -88,7 +88,7 @@ export default async function SettingsPage() {
                       alt={org.githubLogin}
                       width={40}
                       height={40}
-                      className="rounded-md"
+                      className="h-10 w-10 rounded-md"
                     />
                   ) : (
                     <div className="flex h-10 w-10 items-center justify-center rounded-md bg-secondary">
@@ -158,7 +158,7 @@ export default async function SettingsPage() {
                               alt={member.user.name ?? member.user.githubLogin}
                               width={28}
                               height={28}
-                              className="rounded-full"
+                              className="h-7 w-7 rounded-full"
                             />
                           ) : (
                             <div className="h-7 w-7 rounded-full bg-secondary" />

@@ -78,7 +78,7 @@ export default async function DashboardLayout({
                 alt={displayName}
                 width={32}
                 height={32}
-                className="rounded-full"
+                className="h-8 w-8 rounded-full"
               />
             ) : (
               <div className="h-8 w-8 rounded-full bg-secondary" />

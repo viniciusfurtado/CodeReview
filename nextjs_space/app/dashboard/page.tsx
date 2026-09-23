@@ -86,7 +86,7 @@ export default async function DashboardHomePage() {
                         alt={org.githubLogin}
                         width={40}
                         height={40}
-                        className="rounded-md"
+                        className="h-10 w-10 rounded-md"
                       />
                     ) : (
                       <div className="h-10 w-10 rounded-md bg-secondary" />
