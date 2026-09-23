@@ -18,6 +18,10 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { SafeDate } from '@/components/safe-format';
+import {
+  ReviewAutoRefresh,
+  ACTIVE_REVIEW_STATUSES,
+} from '@/components/review-auto-refresh';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,8 +82,13 @@ export default async function ReviewsPage() {
     orderBy: { updatedAt: 'desc' },
   });
 
+  const hasActiveReview = reviews.some((r) =>
+    ACTIVE_REVIEW_STATUSES.includes(r.status as string)
+  );
+
   return (
     <div className="mx-auto max-w-5xl space-y-8">
+      <ReviewAutoRefresh active={hasActiveReview} />
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Revisões</h1>
         <p className="text-muted-foreground">

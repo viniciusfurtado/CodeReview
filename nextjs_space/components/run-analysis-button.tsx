@@ -27,8 +27,8 @@ export function RunAnalysisButton({ reviewId, label }: Props) {
         throw new Error(data.error ?? 'Falha ao executar análise');
       }
       toast({
-        title: 'Análise concluída',
-        description: 'A revisão por IA foi processada com sucesso.',
+        title: 'Análise enfileirada',
+        description: 'A revisão está sendo processada — atualize a página em alguns segundos.',
       });
       router.refresh();
     } catch (err) {

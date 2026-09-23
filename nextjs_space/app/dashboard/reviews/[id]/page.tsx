@@ -23,6 +23,10 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { SafeDate } from '@/components/safe-format';
 import { RunAnalysisButton } from '@/components/run-analysis-button';
+import {
+  ReviewAutoRefresh,
+  ACTIVE_REVIEW_STATUSES,
+} from '@/components/review-auto-refresh';
 
 export const dynamic = 'force-dynamic';
 
@@ -143,6 +147,9 @@ export default async function ReviewDetailPage({
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
+      <ReviewAutoRefresh
+        active={ACTIVE_REVIEW_STATUSES.includes(review.status as string)}
+      />
       <Link
         href="/dashboard/reviews"
         className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
