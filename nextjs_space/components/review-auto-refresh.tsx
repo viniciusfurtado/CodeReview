@@ -5,8 +5,6 @@ import { useRouter } from 'next/navigation';
 
 const POLL_INTERVAL_MS = 6000;
 
-export const ACTIVE_REVIEW_STATUSES = ['PENDING', 'IN_PROGRESS'];
-
 /**
  * Atualiza a página automaticamente enquanto houver alguma review em
  * processamento (PENDING/IN_PROGRESS), sem exigir refresh manual. Para

@@ -18,10 +18,8 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { SafeDate } from '@/components/safe-format';
-import {
-  ReviewAutoRefresh,
-  ACTIVE_REVIEW_STATUSES,
-} from '@/components/review-auto-refresh';
+import { ReviewAutoRefresh } from '@/components/review-auto-refresh';
+import { ACTIVE_REVIEW_STATUSES } from '@/lib/review-status';
 
 export const dynamic = 'force-dynamic';
 
