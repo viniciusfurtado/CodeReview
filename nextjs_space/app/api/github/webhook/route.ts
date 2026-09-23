@@ -96,12 +96,43 @@ interface PullRequestPayload {
     title: string;
     user?: { login?: string; avatar_url?: string };
     head?: { ref?: string; sha?: string };
+    merged?: boolean;
   };
 }
 
 const PR_ACTIONS = ['opened', 'synchronize', 'reopened', 'ready_for_review'];
 
+/**
+ * PR fechada (com ou sem merge): só atualiza o ciclo de vida da review já
+ * existente — não dispara reanálise.
+ */
+async function handlePullRequestClosed(payload: PullRequestPayload): Promise<void> {
+  const repo = await prisma.repository.findUnique({
+    where: { githubRepoId: BigInt(payload.repository.id) },
+  });
+  if (!repo) return;
+
+  await prisma.pullRequestReview
+    .update({
+      where: {
+        repositoryId_prNumber: { repositoryId: repo.id, prNumber: payload.pull_request.number },
+      },
+      data: {
+        prMerged: payload.pull_request.merged === true,
+        prClosedAt: new Date(),
+      },
+    })
+    .catch(() => {
+      // Sem review registrada para essa PR (nunca chegou a ser analisada) — nada a atualizar.
+    });
+}
+
 async function handlePullRequest(payload: PullRequestPayload): Promise<void> {
+  if (payload.action === 'closed') {
+    await handlePullRequestClosed(payload);
+    return;
+  }
+
   if (!PR_ACTIONS.includes(payload.action)) return;
 
   const repo = await prisma.repository.findUnique({
@@ -142,6 +173,8 @@ async function handlePullRequest(payload: PullRequestPayload): Promise<void> {
       queuedAt: new Date(),
       error: null,
       attempts: 0,
+      prMerged: false,
+      prClosedAt: null,
     },
     create: {
       repositoryId: repo.id,

@@ -34,6 +34,15 @@ function statusBadge(status: string) {
   }
 }
 
+function prLifecycleBadge(
+  review: { status: string; prClosedAt: Date | null; prMerged: boolean }
+): { variant: 'success' | 'secondary' | 'outline'; label: string } | null {
+  if (review.status !== 'COMPLETED') return null;
+  if (!review.prClosedAt) return { variant: 'outline', label: 'Aguardando Merge' };
+  if (review.prMerged) return { variant: 'success', label: 'Mergeado' };
+  return { variant: 'secondary', label: 'Fechada sem merge' };
+}
+
 function severityVariant(sev: string) {
   switch (sev) {
     case 'ERROR':
@@ -84,6 +93,7 @@ export default async function ReviewsPage() {
       <div className="space-y-3">
         {reviews.map((review) => {
           const badge = statusBadge(review.status as string);
+          const lifecycleBadge = prLifecycleBadge(review);
           const errorCount = review.findings.filter(
             (f) => (f.severity as string) === 'ERROR'
           ).length;
@@ -141,6 +151,11 @@ export default async function ReviewsPage() {
                       <Badge variant="warning">{warnCount}</Badge>
                     )}
                     <Badge variant={badge.variant}>{badge.label}</Badge>
+                    {lifecycleBadge && (
+                      <Badge variant={lifecycleBadge.variant}>
+                        {lifecycleBadge.label}
+                      </Badge>
+                    )}
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </div>
                 </CardContent>

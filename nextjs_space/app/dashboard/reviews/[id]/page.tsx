@@ -39,6 +39,15 @@ function statusBadge(status: string) {
   }
 }
 
+function prLifecycleBadge(
+  review: { status: string; prClosedAt: Date | null; prMerged: boolean }
+): { variant: 'success' | 'secondary' | 'outline'; label: string } | null {
+  if (review.status !== 'COMPLETED') return null;
+  if (!review.prClosedAt) return { variant: 'outline', label: 'Aguardando Merge' };
+  if (review.prMerged) return { variant: 'success', label: 'Mergeado' };
+  return { variant: 'secondary', label: 'Fechada sem merge' };
+}
+
 function severityMeta(sev: string) {
   switch (sev) {
     case 'ERROR':
@@ -82,6 +91,7 @@ export default async function ReviewDetailPage({
   }
 
   const badge = statusBadge(review.status as string);
+  const lifecycleBadge = prLifecycleBadge(review);
   const canRun =
     review.status === 'PENDING' || review.status === 'FAILED';
 
@@ -141,7 +151,14 @@ export default async function ReviewDetailPage({
               </CardDescription>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-2">
-              <Badge variant={badge.variant}>{badge.label}</Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant={badge.variant}>{badge.label}</Badge>
+                {lifecycleBadge && (
+                  <Badge variant={lifecycleBadge.variant}>
+                    {lifecycleBadge.label}
+                  </Badge>
+                )}
+              </div>
               {canRun && <RunAnalysisButton reviewId={review.id} />}
             </div>
           </div>

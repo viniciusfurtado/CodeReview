@@ -97,8 +97,12 @@ async function analyzeAnthropicCompatible(
   input: AnalysisInput,
   opts: { apiKey: string; model: string; baseURL?: string }
 ): Promise<RawResult> {
+  // Com baseURL customizado (proxy VPS local), o SDK deve mandar a chave como
+  // "Authorization: Bearer" (authToken) — é o que o cli-proxy espera. Sem
+  // baseURL (API oficial da Anthropic), usa o esquema nativo dela ("x-api-key",
+  // via apiKey).
   const client = new Anthropic({
-    apiKey: opts.apiKey,
+    ...(opts.baseURL ? { authToken: opts.apiKey } : { apiKey: opts.apiKey }),
     baseURL: opts.baseURL,
     timeout: LLM_TIMEOUT_MS,
     maxRetries: 0,

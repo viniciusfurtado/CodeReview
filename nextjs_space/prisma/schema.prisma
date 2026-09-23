@@ -1,7 +1,6 @@
 generator client {
     provider = "prisma-client-js"
-    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
-    output = "/home/ubuntu/code-review-saas-preview/nextjs_space/node_modules/.prisma/client"
+    binaryTargets = ["native"]
 }
 
 datasource db {
@@ -203,8 +202,10 @@ model PullRequestReview {
   llmProvider     String?
   llmModel        String?
   postedToGithub  Boolean      @default(false)
-  githubReviewId  Int?
+  githubReviewId  BigInt?
   postError       String?      @db.Text
+  prMerged        Boolean      @default(false)
+  prClosedAt      DateTime?
   queuedAt        DateTime?
   startedAt       DateTime?
   completedAt     DateTime?

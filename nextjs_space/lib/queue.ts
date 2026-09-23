@@ -78,6 +78,44 @@ export async function processReview(reviewId: string): Promise<void> {
       rules,
     });
 
+    // Sem nenhum provedor de IA real disponível (nem gratuito, nem o
+    // fallback pago com créditos) a cadeia cai no mock — isso não é um
+    // resultado válido para o usuário, então tratamos como falha
+    // definitiva de imediato (sem gastar as tentativas de retry, já que
+    // reprocessar sem mudar a configuração vai falhar do mesmo jeito).
+    if (result.usedMock) {
+      const message =
+        'Nenhum provedor de IA disponível para esta organização no momento. Verifique os créditos disponíveis ou tente novamente mais tarde.';
+      await prisma.pullRequestReview.update({
+        where: { id: reviewId },
+        data: { status: 'FAILED', error: message, completedAt: new Date() },
+      });
+      console.error(`[queue] revisão ${reviewId} falhou: ${message}`);
+
+      const baseUrl = process.env.NEXTAUTH_URL ?? 'https://codereview.app';
+      try {
+        await notifyReviewCompleted(org.id, {
+          repoFullName: review.repository.fullName,
+          prNumber: review.prNumber,
+          prTitle: review.prTitle,
+          author: review.author,
+          branch: review.branch,
+          summary: '',
+          findingsCount: 0,
+          errorCount: 0,
+          warningCount: 0,
+          infoCount: 0,
+          status: 'FAILED',
+          error: message,
+          dashboardUrl: `${baseUrl}/dashboard/reviews/${reviewId}`,
+          githubPrUrl: `https://github.com/${review.repository.fullName}/pull/${review.prNumber}`,
+        });
+      } catch (notifyError: any) {
+        console.error(`[queue] falha ao notificar (reviewId=${reviewId}):`, notifyError);
+      }
+      return;
+    }
+
     // Consome 1 crédito apenas quando a análise cobrável (premium/VPS) roda.
     if (result.billable && !result.usedMock && hasCredits) {
       await prisma.organization.update({
@@ -137,7 +175,10 @@ export async function processReview(reviewId: string): Promise<void> {
           where: { id: reviewId },
           data: {
             postedToGithub: postResult.posted,
-            githubReviewId: postResult.githubReviewId,
+            githubReviewId:
+              postResult.githubReviewId !== null
+                ? BigInt(postResult.githubReviewId)
+                : null,
             postError: postResult.error ?? null,
           },
         });
