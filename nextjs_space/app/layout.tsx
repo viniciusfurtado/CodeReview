@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { DM_Sans, Plus_Jakarta_Sans, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { Providers } from '@/components/providers';
-import Script from 'next/script';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,9 +33,6 @@ export default function RootLayout({
       lang="pt-BR"
       className={`${dmSans.variable} ${plusJakartaSans.variable} ${jetbrainsMono.variable}`}
     >
-      <head>
-        <Script src="https://apps.abacus.ai/chatllm/appllm-lib.js" strategy="beforeInteractive" />
-      </head>
       <body className="min-h-screen font-sans antialiased">
         <Providers>{children}</Providers>
       </body>
