@@ -28,7 +28,7 @@ export function RunAnalysisButton({ reviewId, label }: Props) {
       }
       toast({
         title: 'Análise enfileirada',
-        description: 'A revisão está sendo processada — atualize a página em alguns segundos.',
+        description: 'A revisão está sendo processada — o status será atualizado automaticamente aqui assim que terminar.',
       });
       router.refresh();
     } catch (err) {
