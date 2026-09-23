@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { validateWebhookSignature } from '@/lib/github/webhook';
 import { fetchPrDiff } from '@/lib/github/pr';
 import { processReview } from '@/lib/queue';
+import { ensureDefaultRules } from '@/lib/default-rules';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -56,6 +57,7 @@ async function upsertOrgFromInstallation(
       installationSuspended,
     },
   });
+  await ensureDefaultRules(org.id);
   return org.id;
 }
 

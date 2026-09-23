@@ -5,6 +5,7 @@ import { PrismaAdapter } from '@auth/prisma-adapter';
 import type { Adapter, AdapterUser } from 'next-auth/adapters';
 import { prisma } from '@/lib/db';
 import { ensureDemoData } from '@/lib/demo';
+import { ensureDefaultRules } from '@/lib/default-rules';
 
 const GITHUB_API = 'https://api.github.com';
 
@@ -110,6 +111,8 @@ async function upsertOrgMembership(params: {
       role: 'OWNER',
     },
   });
+
+  await ensureDefaultRules(org.id);
 }
 
 async function syncUserOrganizations(
