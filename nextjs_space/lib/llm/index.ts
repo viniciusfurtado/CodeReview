@@ -203,11 +203,18 @@ function buildCandidates(input: AnalysisInput): Candidate[] {
     }
   } else {
     // Modo SERVICE (padrão): IA do próprio serviço.
-    // 1) OpenRouter gratuito, com failover automático entre os modelos free.
+    // 1) OpenRouter gratuito, com failover automático entre os modelos free
+    //    curados. Por fim, "openrouter/free" — o próprio roteador da
+    //    OpenRouter escolhe entre TODOS os modelos gratuitos disponíveis no
+    //    momento, cobrindo casos em que a lista curada esteja indisponível
+    //    (modelo descontinuado, rate-limit, etc.) sem depender de créditos.
     if (openRouterKey) {
-      for (const model of freeModelOrder(input.model)) {
+      for (const model of [...freeModelOrder(input.model), 'openrouter/free']) {
         candidates.push({
-          label: `OpenRouter (grátis) · ${model.replace(':free', '')}`,
+          label:
+            model === 'openrouter/free'
+              ? 'OpenRouter (grátis) · roteamento automático'
+              : `OpenRouter (grátis) · ${model.replace(':free', '')}`,
           provider: 'OPENROUTER',
           model,
           billable: false,
