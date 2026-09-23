@@ -92,6 +92,7 @@ export default async function ReviewDetailPage({
     include: {
       repository: { include: { organization: true } },
       findings: { orderBy: { createdAt: 'asc' } },
+      creditTransactions: { where: { type: 'USAGE' } },
     },
   });
 
@@ -114,8 +115,19 @@ export default async function ReviewDetailPage({
     infoCount,
   });
   const lifecycleBadge = prLifecycleBadge(review);
-  const canRun =
-    review.status === 'PENDING' || review.status === 'FAILED';
+  const creditsUsed = review.creditTransactions.reduce(
+    (sum, t) => sum + t.amount,
+    0
+  );
+  // Reexecutável sempre que não estiver no estado "limpo" (Concluída sem
+  // apontamentos) nem em andamento — cobre PENDING, FAILED e COMPLETED com
+  // qualquer apontamento pendente (Aguardando Ajustes / Ajustes Sugeridos).
+  const isCleanCompleted =
+    review.status === 'COMPLETED' &&
+    errorCount === 0 &&
+    warningCount === 0 &&
+    infoCount === 0;
+  const canRun = review.status !== 'IN_PROGRESS' && !isCleanCompleted;
 
   // Não expor o motor de IA interno (provedor/modelo) do modo SERVICE ao
   // cliente — apenas indicar se foi a IA gerenciada pelo serviço ou a chave
@@ -212,6 +224,12 @@ export default async function ReviewDetailPage({
                 review.llmModel
                   ? ` · ${review.llmModel}`
                   : ''}
+              </p>
+            )}
+            {creditsUsed > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {creditsUsed} crédito{creditsUsed === 1 ? '' : 's'} usado
+                {creditsUsed === 1 ? '' : 's'} nesta revisão
               </p>
             )}
             {review.status === 'COMPLETED' && (

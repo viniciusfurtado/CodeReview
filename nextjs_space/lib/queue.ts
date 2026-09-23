@@ -117,11 +117,22 @@ export async function processReview(reviewId: string): Promise<void> {
     }
 
     // Consome 1 crédito apenas quando a análise cobrável (premium/VPS) roda.
+    // Decremento + registro no histórico andam juntos, na mesma transação.
     if (result.billable && !result.usedMock && hasCredits) {
-      await prisma.organization.update({
-        where: { id: org.id },
-        data: { aiCredits: { decrement: 1 } },
-      });
+      await prisma.$transaction([
+        prisma.organization.update({
+          where: { id: org.id },
+          data: { aiCredits: { decrement: 1 } },
+        }),
+        prisma.creditTransaction.create({
+          data: {
+            organizationId: org.id,
+            type: 'USAGE',
+            amount: 1,
+            reviewId,
+          },
+        }),
+      ]);
     }
 
     // Substitui apontamentos anteriores (idempotência de reprocessamento).

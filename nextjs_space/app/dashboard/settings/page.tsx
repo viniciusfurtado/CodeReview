@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import Image from 'next/image';
-import { Users, CheckCircle2, XCircle, Building2 } from 'lucide-react';
+import { Users, CheckCircle2, XCircle, Building2, History } from 'lucide-react';
+import { SafeDate } from '@/components/safe-format';
 import { prisma } from '@/lib/db';
 import { getCurrentUserId, getUserOrgIds } from '@/lib/dashboard';
 import {
@@ -15,6 +16,17 @@ import { InstallAppButton } from '@/components/install-app-button';
 import { LlmSettings } from '@/components/llm-settings';
 
 export const dynamic = 'force-dynamic';
+
+function transactionTypeLabel(type: string) {
+  switch (type) {
+    case 'PURCHASE':
+      return { label: 'Compra', variant: 'success' as const, sign: '+' };
+    case 'ADJUSTMENT':
+      return { label: 'Ajuste', variant: 'secondary' as const, sign: '' };
+    default:
+      return { label: 'Uso', variant: 'outline' as const, sign: '-' };
+  }
+}
 
 function roleLabel(role: string) {
   switch (role) {
@@ -37,6 +49,19 @@ export default async function SettingsPage() {
     include: {
       members: { include: { user: true }, orderBy: { role: 'asc' } },
       _count: { select: { repositories: true, reviewRules: true } },
+      creditTransactions: {
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+        include: {
+          review: {
+            select: {
+              prNumber: true,
+              prTitle: true,
+              repository: { select: { fullName: true } },
+            },
+          },
+        },
+      },
     },
     orderBy: { name: 'asc' },
   });
@@ -161,6 +186,52 @@ export default async function SettingsPage() {
                 initialModel={org.llmModel}
                 credits={org.aiCredits}
               />
+
+              {org.creditTransactions.length > 0 && (
+                <div>
+                  <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                    <History className="h-4 w-4" />
+                    Histórico de créditos
+                  </div>
+                  <div className="divide-y divide-border rounded-md border border-border">
+                    {org.creditTransactions.map((tx) => {
+                      const meta = transactionTypeLabel(tx.type as string);
+                      return (
+                        <div
+                          key={tx.id}
+                          className="flex items-center justify-between gap-3 p-3"
+                        >
+                          <div className="flex items-center gap-3">
+                            <Badge variant={meta.variant}>{meta.label}</Badge>
+                            <div className="text-sm">
+                              {tx.review ? (
+                                <div className="font-medium">
+                                  {tx.review.repository.fullName} #
+                                  {tx.review.prNumber}
+                                </div>
+                              ) : (
+                                <div className="font-medium text-muted-foreground">
+                                  {tx.note ?? '—'}
+                                </div>
+                              )}
+                              <div className="text-xs text-muted-foreground">
+                                <SafeDate
+                                  date={tx.createdAt}
+                                  options={{ dateStyle: 'medium', timeStyle: 'short' }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-sm font-semibold">
+                            {meta.sign}
+                            {tx.amount}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {!installed && (
                 <div className="rounded-md border border-primary/30 bg-primary/5 p-4">
