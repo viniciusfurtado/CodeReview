@@ -28,6 +28,8 @@ interface GithubOrg {
 function buildAdapter(): Adapter {
   const adapter = PrismaAdapter(prisma) as Adapter;
 
+  // O NextAuth espera um campo "image" no usuário; nosso schema usa
+  // "avatarUrl". Mapeamos aqui para não precisar duplicar a coluna.
   adapter.createUser = async (data: AdapterUser): Promise<AdapterUser> => {
     const u = data as unknown as GithubProfileUser;
     const user = await prisma.user.upsert({
@@ -46,7 +48,20 @@ function buildAdapter(): Adapter {
         avatarUrl: u.avatarUrl ?? null,
       },
     });
-    return { ...user, emailVerified: null } as unknown as AdapterUser;
+    return {
+      ...user,
+      image: user.avatarUrl,
+      emailVerified: null,
+    } as unknown as AdapterUser;
+  };
+
+  // Usado em todo login de usuário JÁ existente (o caminho mais comum) —
+  // sem esse override, o adapter padrão nunca preenche "image".
+  const originalGetUserByAccount = adapter.getUserByAccount?.bind(adapter);
+  adapter.getUserByAccount = async (accountRef) => {
+    const user = await originalGetUserByAccount?.(accountRef);
+    if (!user) return null;
+    return { ...user, image: (user as any).avatarUrl ?? user.image };
   };
 
   return adapter;
