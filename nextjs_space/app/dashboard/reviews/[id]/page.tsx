@@ -10,12 +10,14 @@ import {
   AlertTriangle,
   Info,
   Lightbulb,
+  ChevronDown,
 } from 'lucide-react';
 import { prisma } from '@/lib/db';
 import { getCurrentUserId, getUserOrgIds } from '@/lib/dashboard';
 import {
   Card,
   CardContent,
+  CardFooter,
   CardHeader,
   CardTitle,
   CardDescription,
@@ -27,6 +29,11 @@ import {
   ReviewAutoRefresh,
   ACTIVE_REVIEW_STATUSES,
 } from '@/components/review-auto-refresh';
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from '@/components/ui/collapsible';
 
 export const dynamic = 'force-dynamic';
 
@@ -191,16 +198,13 @@ export default async function ReviewDetailPage({
                 />
               </CardDescription>
             </div>
-            <div className="flex shrink-0 flex-col items-end gap-2">
-              <div className="flex items-center gap-2">
-                <Badge variant={badge.variant}>{badge.label}</Badge>
-                {lifecycleBadge && (
-                  <Badge variant={lifecycleBadge.variant}>
-                    {lifecycleBadge.label}
-                  </Badge>
-                )}
-              </div>
-              {canRun && <RunAnalysisButton reviewId={review.id} />}
+            <div className="flex shrink-0 items-center gap-2">
+              <Badge variant={badge.variant}>{badge.label}</Badge>
+              {lifecycleBadge && (
+                <Badge variant={lifecycleBadge.variant}>
+                  {lifecycleBadge.label}
+                </Badge>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -239,43 +243,62 @@ export default async function ReviewDetailPage({
                 {creditsUsed === 1 ? '' : 's'} nesta revisão
               </p>
             )}
-            {review.status === 'COMPLETED' && (
-              <div className="flex items-center gap-2 pt-1">
-                {review.postedToGithub ? (
-                  <>
-                    <Badge variant="success" className="text-xs">
-                      ✅ Postado no GitHub
-                    </Badge>
-                    {review.githubReviewId && (
-                      <a
-                        href={`https://github.com/${review.repository.fullName}/pull/${review.prNumber}#pullrequestreview-${review.githubReviewId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-primary underline hover:no-underline"
-                      >
-                        Ver no GitHub ↗
-                      </a>
-                    )}
-                  </>
-                ) : review.postError ? (
-                  <span className="text-xs text-destructive">
-                    ⚠️ Falha ao postar no GitHub: {review.postError}
-                  </span>
-                ) : (
-                  <Badge variant="outline" className="text-xs">
-                    Somente interno
-                  </Badge>
-                )}
-              </div>
-            )}
           </CardContent>
         )}
+        <CardFooter className="flex items-center justify-between gap-3 border-t border-border pt-4">
+          <div className="flex flex-wrap items-center gap-2">
+            {review.status === 'COMPLETED' && review.postedToGithub && (
+              <>
+                <Badge variant="success" className="text-xs">
+                  ✅ Postado no GitHub
+                </Badge>
+                {review.githubReviewId ? (
+                  <a
+                    href={`https://github.com/${review.repository.fullName}/pull/${review.prNumber}#pullrequestreview-${review.githubReviewId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary underline hover:no-underline"
+                  >
+                    Ver no GitHub ↗
+                  </a>
+                ) : null}
+              </>
+            )}
+            {review.status === 'COMPLETED' && !review.postedToGithub && review.postError && (
+              <span className="text-xs text-destructive">
+                ⚠️ Falha ao postar no GitHub: {review.postError}
+              </span>
+            )}
+            {review.status === 'COMPLETED' && !review.postedToGithub && !review.postError && (
+              <Badge variant="outline" className="text-xs">
+                Somente interno
+              </Badge>
+            )}
+            {(review.status !== 'COMPLETED' || !review.postedToGithub) && (
+              <a
+                href={`https://github.com/${review.repository.fullName}/pull/${review.prNumber}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-primary underline hover:no-underline"
+              >
+                Abrir PR no GitHub ↗
+              </a>
+            )}
+          </div>
+          {canRun && <RunAnalysisButton reviewId={review.id} />}
+        </CardFooter>
       </Card>
 
-      <div>
-        <h2 className="mb-3 text-lg font-semibold">
-          Apontamentos ({review.findings.length})
-        </h2>
+      <Collapsible defaultOpen>
+        <CollapsibleTrigger asChild>
+          <button className="mb-3 flex w-full items-center justify-between gap-2 text-left [&[data-state=open]>svg]:rotate-180">
+            <h2 className="text-lg font-semibold">
+              Apontamentos ({review.findings.length})
+            </h2>
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform" />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
         {review.findings.length === 0 && (
           <Card>
             <CardContent className="p-6 text-sm text-muted-foreground">
@@ -324,7 +347,8 @@ export default async function ReviewDetailPage({
             );
           })}
         </div>
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 }
