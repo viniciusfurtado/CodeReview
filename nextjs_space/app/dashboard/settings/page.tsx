@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import Image from 'next/image';
-import { Users, CheckCircle2, XCircle, Building2, History } from 'lucide-react';
+import { Users, CheckCircle2, XCircle, Building2, Coins } from 'lucide-react';
 import { SafeDate } from '@/components/safe-format';
 import { prisma } from '@/lib/db';
 import { getCurrentUserId, getUserOrgIds } from '@/lib/dashboard';
@@ -155,7 +155,7 @@ export default async function SettingsPage() {
                           {member.user.avatarUrl ? (
                             <Image
                               src={member.user.avatarUrl}
-                              alt={member.user.name ?? 'Membro'}
+                              alt={member.user.name ?? member.user.githubLogin}
                               width={28}
                               height={28}
                               className="rounded-full"
@@ -165,10 +165,10 @@ export default async function SettingsPage() {
                           )}
                           <div className="text-sm">
                             <div className="font-medium">
-                              {member.user.name ?? 'Sem nome'}
+                              {member.user.name ?? `@${member.user.githubLogin}`}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              {member.user.email}
+                              {member.user.email ?? `@${member.user.githubLogin}`}
                             </div>
                           </div>
                         </div>
@@ -190,7 +190,9 @@ export default async function SettingsPage() {
               {org.creditTransactions.length > 0 && (
                 <div>
                   <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                    <History className="h-4 w-4" />
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                      <Coins className="h-3.5 w-3.5" />
+                    </span>
                     Histórico de créditos
                   </div>
                   <div className="divide-y divide-border rounded-md border border-border">
@@ -222,7 +224,8 @@ export default async function SettingsPage() {
                               </div>
                             </div>
                           </div>
-                          <div className="text-sm font-semibold">
+                          <div className="flex items-center gap-1 text-sm font-semibold text-amber-700 dark:text-amber-400">
+                            <Coins className="h-3.5 w-3.5" />
                             {meta.sign}
                             {tx.amount}
                           </div>

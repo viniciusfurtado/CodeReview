@@ -180,13 +180,42 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       authorization: {
         params: { scope: 'read:user user:email read:org' },
       },
-      profile(profile: any): GithubProfileUser {
+      async profile(profile: any, tokens: any): Promise<GithubProfileUser> {
+        // A API do GitHub só retorna profile.email quando o usuário tem um
+        // e-mail público. Para a maioria dos usuários (e-mail privado) é
+        // preciso buscar separadamente em /user/emails.
+        let email: string | null = profile.email ?? null;
+        if (!email && tokens?.access_token) {
+          try {
+            const res = await fetch('https://api.github.com/user/emails', {
+              headers: {
+                Authorization: `Bearer ${tokens.access_token}`,
+                Accept: 'application/vnd.github+json',
+              },
+            });
+            if (res.ok) {
+              const emails = (await res.json()) as {
+                email: string;
+                primary: boolean;
+                verified: boolean;
+              }[];
+              const chosen =
+                emails.find((e) => e.primary && e.verified) ??
+                emails.find((e) => e.verified) ??
+                emails[0];
+              email = chosen?.email ?? null;
+            }
+          } catch {
+            // Best-effort — segue sem e-mail se a chamada falhar.
+          }
+        }
+
         return {
           id: String(profile.id),
           githubId: String(profile.id),
           githubLogin: profile.login,
           name: profile.name ?? null,
-          email: profile.email ?? null,
+          email,
           avatarUrl: profile.avatar_url ?? null,
         };
       },
