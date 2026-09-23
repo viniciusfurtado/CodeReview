@@ -24,7 +24,7 @@ model Organization {
   llmMode               LlmMode  @default(SERVICE)
   llmProvider           LlmProvider @default(OPENROUTER)
   llmModel              String?
-  aiCredits             Int      @default(0)
+  aiCredits             Int      @default(15)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 

@@ -95,6 +95,11 @@ async function upsertOrgMembership(params: {
   avatarUrl: string | null;
   isPersonal: boolean;
 }): Promise<void> {
+  const existed = await prisma.organization.findUnique({
+    where: { githubOrgId: params.githubOrgId },
+    select: { id: true },
+  });
+
   const org = await prisma.organization.upsert({
     where: { githubOrgId: params.githubOrgId },
     update: {
@@ -111,6 +116,19 @@ async function upsertOrgMembership(params: {
       isPersonal: params.isPersonal,
     },
   });
+
+  // Organização nova: registra no histórico os créditos de avaliação
+  // concedidos automaticamente no cadastro (valor vem do default do schema).
+  if (!existed && org.aiCredits > 0) {
+    await prisma.creditTransaction.create({
+      data: {
+        organizationId: org.id,
+        type: 'ADJUSTMENT',
+        amount: org.aiCredits,
+        note: 'Créditos de avaliação concedidos no cadastro',
+      },
+    });
+  }
 
   await prisma.organizationMember.upsert({
     where: {

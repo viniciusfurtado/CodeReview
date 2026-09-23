@@ -90,6 +90,14 @@ export const OPENROUTER_FREE_MODELS: OpenRouterFreeModel[] = [
     id: 'qwen/qwen3.8-27b:free',
     label: 'Qwen 3.8 27B (gratuito)',
   },
+  {
+    id: 'google/gemma-4-26b-a4b-it:free',
+    label: 'Google Gemma 4 26B (gratuito)',
+  },
+  {
+    id: 'poolside/laguna-s-2.1:free',
+    label: 'Poolside Laguna S 2.1 (gratuito)',
+  },
 ];
 
 // Modelos pagos sugeridos para o Claude (Anthropic).

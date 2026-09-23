@@ -39,6 +39,11 @@ async function upsertOrgFromInstallation(
   installationId: bigint | null,
   installationSuspended: boolean
 ): Promise<string> {
+  const existed = await prisma.organization.findUnique({
+    where: { githubOrgId: String(account.id) },
+    select: { id: true },
+  });
+
   const org = await prisma.organization.upsert({
     where: { githubOrgId: String(account.id) },
     update: {
@@ -57,6 +62,18 @@ async function upsertOrgFromInstallation(
       installationSuspended,
     },
   });
+
+  if (!existed && org.aiCredits > 0) {
+    await prisma.creditTransaction.create({
+      data: {
+        organizationId: org.id,
+        type: 'ADJUSTMENT',
+        amount: org.aiCredits,
+        note: 'Créditos de avaliação concedidos no cadastro',
+      },
+    });
+  }
+
   await ensureDefaultRules(org.id);
   return org.id;
 }
