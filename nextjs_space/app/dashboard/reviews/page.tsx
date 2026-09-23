@@ -21,9 +21,18 @@ import { SafeDate } from '@/components/safe-format';
 
 export const dynamic = 'force-dynamic';
 
-function statusBadge(status: string) {
+function statusBadge(
+  status: string,
+  counts: { errorCount: number; warningCount: number; infoCount: number }
+) {
   switch (status) {
     case 'COMPLETED':
+      if (counts.errorCount > 0 || counts.warningCount > 0) {
+        return { variant: 'warning' as const, label: 'Aguardando Ajustes' };
+      }
+      if (counts.infoCount > 0) {
+        return { variant: 'secondary' as const, label: 'Ajustes Sugeridos' };
+      }
       return { variant: 'success' as const, label: 'Concluída' };
     case 'IN_PROGRESS':
       return { variant: 'warning' as const, label: 'Em andamento' };
@@ -92,14 +101,21 @@ export default async function ReviewsPage() {
 
       <div className="space-y-3">
         {reviews.map((review) => {
-          const badge = statusBadge(review.status as string);
-          const lifecycleBadge = prLifecycleBadge(review);
           const errorCount = review.findings.filter(
             (f) => (f.severity as string) === 'ERROR'
           ).length;
           const warnCount = review.findings.filter(
             (f) => (f.severity as string) === 'WARNING'
           ).length;
+          const infoCount = review.findings.filter(
+            (f) => (f.severity as string) === 'INFO'
+          ).length;
+          const badge = statusBadge(review.status as string, {
+            errorCount,
+            warningCount: warnCount,
+            infoCount,
+          });
+          const lifecycleBadge = prLifecycleBadge(review);
           return (
             <Link key={review.id} href={`/dashboard/reviews/${review.id}`}>
               <Card className="transition-colors hover:border-primary/50">

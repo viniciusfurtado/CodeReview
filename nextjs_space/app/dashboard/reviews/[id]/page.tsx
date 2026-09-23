@@ -26,9 +26,18 @@ import { RunAnalysisButton } from '@/components/run-analysis-button';
 
 export const dynamic = 'force-dynamic';
 
-function statusBadge(status: string) {
+function statusBadge(
+  status: string,
+  counts: { errorCount: number; warningCount: number; infoCount: number }
+) {
   switch (status) {
     case 'COMPLETED':
+      if (counts.errorCount > 0 || counts.warningCount > 0) {
+        return { variant: 'warning' as const, label: 'Aguardando Ajustes' };
+      }
+      if (counts.infoCount > 0) {
+        return { variant: 'secondary' as const, label: 'Ajustes Sugeridos' };
+      }
       return { variant: 'success' as const, label: 'Concluída' };
     case 'IN_PROGRESS':
       return { variant: 'warning' as const, label: 'Em andamento' };
@@ -90,7 +99,20 @@ export default async function ReviewDetailPage({
     notFound();
   }
 
-  const badge = statusBadge(review.status as string);
+  const errorCount = review.findings.filter(
+    (f) => (f.severity as string) === 'ERROR'
+  ).length;
+  const warningCount = review.findings.filter(
+    (f) => (f.severity as string) === 'WARNING'
+  ).length;
+  const infoCount = review.findings.filter(
+    (f) => (f.severity as string) === 'INFO'
+  ).length;
+  const badge = statusBadge(review.status as string, {
+    errorCount,
+    warningCount,
+    infoCount,
+  });
   const lifecycleBadge = prLifecycleBadge(review);
   const canRun =
     review.status === 'PENDING' || review.status === 'FAILED';
