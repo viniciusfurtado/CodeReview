@@ -207,7 +207,7 @@ export function NotificationHistory({ deliveries }: { deliveries: DeliveryDTO[] 
                 <iframe
                   title="Pré-visualização do e-mail"
                   srcDoc={detail.preview.content}
-                  sandbox=""
+                  sandbox="allow-popups allow-popups-to-escape-sandbox"
                   className="h-96 w-full rounded-md border border-border bg-white"
                 />
               ) : (

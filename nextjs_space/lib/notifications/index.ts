@@ -203,7 +203,7 @@ export async function buildReviewNotificationData(
   });
   if (!review) return null;
 
-  const baseUrl = process.env.NEXTAUTH_URL ?? 'https://codereview.app';
+  const baseUrl = process.env.AUTH_URL ?? 'https://codereview.app';
   const errorCount = review.findings.filter((f) => f.severity === 'ERROR').length;
   const warningCount = review.findings.filter((f) => f.severity === 'WARNING').length;
   const infoCount = review.findings.filter((f) => f.severity === 'INFO').length;

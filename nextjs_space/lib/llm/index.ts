@@ -169,7 +169,7 @@ function buildCandidates(input: AnalysisInput): Candidate[] {
   const openRouterKey = process.env.OPENROUTER_API_KEY;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   const openRouterHeaders = {
-    'HTTP-Referer': process.env.NEXTAUTH_URL ?? 'https://codereview.abacusai.app',
+    'HTTP-Referer': process.env.AUTH_URL ?? 'https://codereview.abacusai.app',
     'X-Title': 'AI Code Review',
   };
 

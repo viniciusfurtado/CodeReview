@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   title: 'AI Code Review',
   description:
     'Revisão de código automatizada com inteligência artificial para seus Pull Requests.',
-  metadataBase: new URL(process.env.NEXTAUTH_URL || 'http://localhost:3000'),
+  metadataBase: new URL(process.env.AUTH_URL || 'http://localhost:3000'),
   icons: {
     icon: '/favicon.svg',
     shortcut: '/favicon.svg',

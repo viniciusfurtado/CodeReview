@@ -92,7 +92,7 @@ export async function processReview(reviewId: string): Promise<void> {
       });
       console.error(`[queue] revisão ${reviewId} falhou: ${message}`);
 
-      const baseUrl = process.env.NEXTAUTH_URL ?? 'https://codereview.app';
+      const baseUrl = process.env.AUTH_URL ?? 'https://codereview.app';
       try {
         await notifyReviewCompleted(org.id, reviewId, {
           repoFullName: review.repository.fullName,
@@ -209,7 +209,7 @@ export async function processReview(reviewId: string): Promise<void> {
     // Etapa 6: notifica canais configurados (Slack, Discord, Teams, Email).
     // Falha no envio NÃO afeta o status da review.
     // -----------------------------------------------------------------------
-    const baseUrl = process.env.NEXTAUTH_URL ?? 'https://codereview.app';
+    const baseUrl = process.env.AUTH_URL ?? 'https://codereview.app';
     try {
       const savedFindings = await prisma.reviewFinding.findMany({
         where: { reviewId },
@@ -251,7 +251,7 @@ export async function processReview(reviewId: string): Promise<void> {
 
     // Notifica falha definitiva (última tentativa esgotada).
     if (isFinal) {
-      const baseUrl = process.env.NEXTAUTH_URL ?? 'https://codereview.app';
+      const baseUrl = process.env.AUTH_URL ?? 'https://codereview.app';
       try {
         await notifyReviewCompleted(org.id, reviewId, {
           repoFullName: review.repository.fullName,

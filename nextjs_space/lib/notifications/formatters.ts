@@ -231,8 +231,8 @@ export function formatEmailHtml(data: ReviewNotificationData): string {
   }
 
   <p>
-    <a href="${data.dashboardUrl}" style="display:inline-block;padding:8px 16px;background:#2563eb;color:white;border-radius:6px;text-decoration:none;margin-right:8px">📊 Dashboard</a>
-    <a href="${data.githubPrUrl}" style="display:inline-block;padding:8px 16px;background:#24292f;color:white;border-radius:6px;text-decoration:none">🔗 GitHub</a>
+    <a href="${data.dashboardUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:8px 16px;background:#2563eb;color:white;border-radius:6px;text-decoration:none;margin-right:8px">📊 Dashboard</a>
+    <a href="${data.githubPrUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:8px 16px;background:#24292f;color:white;border-radius:6px;text-decoration:none">🔗 GitHub</a>
   </p>
 
   <hr style="border:none;border-top:1px solid #e5e5e5;margin:20px 0">
