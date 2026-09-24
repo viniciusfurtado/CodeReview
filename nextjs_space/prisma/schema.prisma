@@ -136,9 +136,34 @@ model NotificationChannel {
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deliveries   NotificationDelivery[]
 
   @@index([organizationId])
+}
+
+enum NotificationDeliveryStatus {
+  SUCCESS
+  FAILED
+}
+
+// Histórico de envios de notificação — uma linha por tentativa (canal x
+// review). Retenção: aplicada pelo dispatcher (pruneNotificationHistory em
+// lib/notifications), não pelo schema — até 100 por organização e até 90
+// dias, o que for mais restritivo.
+model NotificationDelivery {
+  id        String                     @id @default(cuid())
+  channelId String
+  reviewId  String
+  status    NotificationDeliveryStatus
+  error     String?                    @db.Text
+  createdAt DateTime                   @default(now())
+
+  channel NotificationChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  review  PullRequestReview   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@index([channelId])
+  @@index([reviewId])
 }
 
 // ---------------------------------------------------------------------------
@@ -216,6 +241,7 @@ model PullRequestReview {
   repository         Repository          @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
   findings           ReviewFinding[]
   creditTransactions CreditTransaction[]
+  notificationDeliveries NotificationDelivery[]
 
   @@unique([repositoryId, prNumber])
   @@index([repositoryId])

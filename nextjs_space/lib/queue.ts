@@ -94,7 +94,7 @@ export async function processReview(reviewId: string): Promise<void> {
 
       const baseUrl = process.env.NEXTAUTH_URL ?? 'https://codereview.app';
       try {
-        await notifyReviewCompleted(org.id, {
+        await notifyReviewCompleted(org.id, reviewId, {
           repoFullName: review.repository.fullName,
           prNumber: review.prNumber,
           prTitle: review.prTitle,
@@ -215,7 +215,7 @@ export async function processReview(reviewId: string): Promise<void> {
         where: { reviewId },
         select: { severity: true },
       });
-      await notifyReviewCompleted(org.id, {
+      await notifyReviewCompleted(org.id, reviewId, {
         repoFullName: review.repository.fullName,
         prNumber: review.prNumber,
         prTitle: review.prTitle,
@@ -253,7 +253,7 @@ export async function processReview(reviewId: string): Promise<void> {
     if (isFinal) {
       const baseUrl = process.env.NEXTAUTH_URL ?? 'https://codereview.app';
       try {
-        await notifyReviewCompleted(org.id, {
+        await notifyReviewCompleted(org.id, reviewId, {
           repoFullName: review.repository.fullName,
           prNumber: review.prNumber,
           prTitle: review.prTitle,

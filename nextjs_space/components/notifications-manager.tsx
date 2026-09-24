@@ -49,7 +49,7 @@ export interface OrgWithChannels {
   channels: ChannelDTO[];
 }
 
-const TYPE_META: Record<
+export const TYPE_META: Record<
   ChannelType,
   { label: string; icon: typeof Mail; placeholder: string }
 > = {
@@ -71,7 +71,13 @@ const TYPE_META: Record<
   },
 };
 
-export function NotificationsManager({ orgs }: { orgs: OrgWithChannels[] }) {
+export function NotificationsManager({
+  orgs,
+  hideHeader = false,
+}: {
+  orgs: OrgWithChannels[];
+  hideHeader?: boolean;
+}) {
   const router = useRouter();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -153,12 +159,16 @@ export function NotificationsManager({ orgs }: { orgs: OrgWithChannels[] }) {
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Notificações</h1>
-          <p className="text-muted-foreground">
-            Escolha para onde enviar os resultados das revisões.
-          </p>
-        </div>
+        {hideHeader ? (
+          <div />
+        ) : (
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Notificações</h1>
+            <p className="text-muted-foreground">
+              Escolha para onde enviar os resultados das revisões.
+            </p>
+          </div>
+        )}
         {hasOrgs && (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
