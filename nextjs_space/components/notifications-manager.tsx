@@ -67,7 +67,7 @@ const TYPE_META: Record<
   TEAMS: {
     label: 'Microsoft Teams',
     icon: Users,
-    placeholder: 'https://outlook.office.com/webhook/...',
+    placeholder: 'https://prod-XX.logic.azure.com/workflows/.../invoke?...',
   },
 };
 

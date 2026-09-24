@@ -65,12 +65,17 @@ export function formatSlack(data: ReviewNotificationData): object {
     },
   ];
 
+  // Blocks do Slack têm limite de 3000 caracteres por texto — passar disso
+  // faz o Slack rejeitar a mensagem inteira (400), derrubando a notificação
+  // inteira em silêncio.
+  const SLACK_TEXT_LIMIT = 2900;
+
   if (data.status === 'COMPLETED') {
     blocks.push({
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `${severitySummary(data)}\n\n${data.summary}`,
+        text: `${severitySummary(data)}\n\n${data.summary}`.slice(0, SLACK_TEXT_LIMIT),
       },
     });
   } else if (data.error) {
@@ -78,7 +83,7 @@ export function formatSlack(data: ReviewNotificationData): object {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `❌ *Erro:* ${data.error}`,
+        text: `❌ *Erro:* ${data.error}`.slice(0, SLACK_TEXT_LIMIT),
       },
     });
   }
