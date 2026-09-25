@@ -25,6 +25,8 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { SafeDate } from '@/components/safe-format';
 import { RunAnalysisButton } from '@/components/run-analysis-button';
+import { GradeBadge } from '@/components/grade-badge';
+import { gradeForReview } from '@/lib/review-grade';
 import { ReviewAutoRefresh } from '@/components/review-auto-refresh';
 import { ACTIVE_REVIEW_STATUSES } from '@/lib/review-status';
 import {
@@ -197,6 +199,9 @@ export default async function ReviewDetailPage({
               </CardDescription>
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              {review.status === 'COMPLETED' && (
+                <GradeBadge grade={gradeForReview({ errorCount, warningCount })} />
+              )}
               <Badge variant={badge.variant}>{badge.label}</Badge>
               {lifecycleBadge && (
                 <Badge variant={lifecycleBadge.variant}>

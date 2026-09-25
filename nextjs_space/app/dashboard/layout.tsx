@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { auth } from '@/auth';
 import { SignOutButton } from '@/components/sign-out-button';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { MobileNav } from '@/components/mobile-nav';
 
 const navItems = [
@@ -72,6 +73,7 @@ export default async function DashboardLayout({
             </div>
           </div>
           <div className="ml-auto flex items-center gap-3">
+            <ThemeToggle />
             {image ? (
               <Image
                 src={image}

@@ -18,6 +18,8 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { SafeDate } from '@/components/safe-format';
+import { GradeBadge } from '@/components/grade-badge';
+import { gradeForReview } from '@/lib/review-grade';
 import { ReviewAutoRefresh } from '@/components/review-auto-refresh';
 import { ACTIVE_REVIEW_STATUSES } from '@/lib/review-status';
 
@@ -164,6 +166,9 @@ export default async function ReviewsPage() {
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
+                    {review.status === 'COMPLETED' && (
+                      <GradeBadge grade={gradeForReview({ errorCount, warningCount: warnCount })} />
+                    )}
                     {errorCount > 0 && (
                       <Badge variant="destructive" className="gap-1">
                         <AlertCircle className="h-3 w-3" />
