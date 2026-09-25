@@ -33,6 +33,7 @@ model Organization {
   reviewRules          ReviewRule[]
   notificationChannels NotificationChannel[]
   creditTransactions   CreditTransaction[]
+  laudos               Laudo[]
 }
 
 model User {
@@ -48,6 +49,7 @@ model User {
   memberships OrganizationMember[]
   accounts    Account[]
   sessions    Session[]
+  laudos      Laudo[]
 }
 
 model OrganizationMember {
@@ -84,6 +86,7 @@ model Repository {
 
   organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   reviews      PullRequestReview[]
+  laudos       Laudo[]
 
   @@index([organizationId])
 }
@@ -265,6 +268,97 @@ model ReviewFinding {
 }
 
 // ---------------------------------------------------------------------------
+// Laudos (relatório de qualidade de repositório inteiro, com dupla checagem)
+// ---------------------------------------------------------------------------
+
+enum LaudoSource {
+  REGISTERED
+  PUBLIC_URL
+}
+
+// Confiança do apontamento: CONFIRMED_BOTH quando a IA gratuita já havia
+// encontrado o mesmo problema e o Claude confirmou na dupla checagem;
+// CLAUDE_ONLY quando só o Claude identificou (etapa gratuita indisponível,
+// ou o Claude descartou o apontamento original e reescreveu/adicionou o seu).
+enum LaudoFindingSource {
+  CONFIRMED_BOTH
+  CLAUDE_ONLY
+}
+
+enum LaudoArtifactType {
+  PDF
+  MARKDOWN
+}
+
+model Laudo {
+  id                String       @id @default(cuid())
+  organizationId    String
+  requestedByUserId String
+  source            LaudoSource
+  repositoryId      String?
+  publicRepoUrl     String?
+  branch            String?
+  status            ReviewStatus @default(PENDING)
+  attempts          Int          @default(0)
+  error             String?      @db.Text
+  summary           String?      @db.Text
+  scoreLetter       String?
+  scoreNumber       Int?
+  filesScanned      Int          @default(0)
+  filesSkipped      Int          @default(0)
+  truncated         Boolean      @default(false)
+  usedClaudeOnly    Boolean      @default(false)
+  freeModel         String?
+  claudeModel       String?
+  queuedAt          DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  requestedBy        User                @relation(fields: [requestedByUserId], references: [id], onDelete: Cascade)
+  repository         Repository?         @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  findings           LaudoFinding[]
+  artifacts          LaudoArtifact[]
+  creditTransactions CreditTransaction[]
+
+  @@index([organizationId])
+  @@index([status])
+}
+
+model LaudoFinding {
+  id         String             @id @default(cuid())
+  laudoId    String
+  filePath   String
+  line       Int?
+  severity   FindingSeverity    @default(WARNING)
+  title      String
+  message    String             @db.Text
+  suggestion String?            @db.Text
+  source     LaudoFindingSource @default(CLAUDE_ONLY)
+  createdAt  DateTime           @default(now())
+
+  laudo Laudo @relation(fields: [laudoId], references: [id], onDelete: Cascade)
+
+  @@index([laudoId])
+}
+
+model LaudoArtifact {
+  id        String            @id @default(cuid())
+  laudoId   String
+  type      LaudoArtifactType
+  fileName  String
+  filePath  String
+  sizeBytes Int
+  createdAt DateTime          @default(now())
+
+  laudo Laudo @relation(fields: [laudoId], references: [id], onDelete: Cascade)
+
+  @@index([laudoId])
+}
+
+// ---------------------------------------------------------------------------
 // NextAuth required tables (PrismaAdapter)
 // ---------------------------------------------------------------------------
 
@@ -322,12 +416,15 @@ model CreditTransaction {
   type           CreditTransactionType
   amount         Int
   reviewId       String?
+  laudoId        String?
   note           String?
   createdAt      DateTime              @default(now())
 
   organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   review       PullRequestReview? @relation(fields: [reviewId], references: [id], onDelete: SetNull)
+  laudo        Laudo?             @relation(fields: [laudoId], references: [id], onDelete: SetNull)
 
   @@index([organizationId])
   @@index([reviewId])
+  @@index([laudoId])
 }
