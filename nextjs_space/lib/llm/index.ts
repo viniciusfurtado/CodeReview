@@ -1,10 +1,7 @@
-import OpenAI from 'openai';
-import Anthropic from '@anthropic-ai/sdk';
 import {
   AnalysisInput,
   AnalysisResult,
   AnalysisFinding,
-  Severity,
   DEFAULT_MODELS,
   LlmProviderId,
   LlmMode,
@@ -13,113 +10,9 @@ import {
   getServiceAgyConfig,
 } from './types';
 import { SYSTEM_PROMPT, buildUserPrompt } from './prompt';
-
-// Tempo máximo por tentativa. Se um provedor demorar demais (alta latência),
-// a chamada é abortada e a cadeia tenta a próxima opção (failover).
-const LLM_TIMEOUT_MS = 45_000;
-
-const VALID_SEVERITY: Severity[] = ['INFO', 'WARNING', 'ERROR'];
-
-function coerceSeverity(value: unknown): Severity {
-  const v = String(value ?? '').toUpperCase();
-  return (VALID_SEVERITY as string[]).includes(v) ? (v as Severity) : 'WARNING';
-}
-
-/** Extrai o objeto JSON de uma resposta que pode vir com cercas de markdown. */
-function parseJsonResponse(raw: string): {
-  summary: string;
-  findings: AnalysisFinding[];
-} {
-  let text = (raw ?? '').trim();
-  // Remove cercas ```json ... ```
-  const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fenceMatch) text = fenceMatch[1].trim();
-  // Recorta do primeiro { ao último }
-  const first = text.indexOf('{');
-  const last = text.lastIndexOf('}');
-  if (first !== -1 && last !== -1) text = text.slice(first, last + 1);
-
-  const data = JSON.parse(text);
-  const findings: AnalysisFinding[] = Array.isArray(data.findings)
-    ? data.findings.map((f: any) => ({
-        filePath: String(f.filePath ?? f.file ?? 'desconhecido'),
-        line:
-          f.line === null || f.line === undefined || Number.isNaN(Number(f.line))
-            ? null
-            : Number(f.line),
-        severity: coerceSeverity(f.severity),
-        title: String(f.title ?? 'Apontamento'),
-        message: String(f.message ?? ''),
-        suggestion: f.suggestion ? String(f.suggestion) : null,
-      }))
-    : [];
-  return {
-    summary: String(data.summary ?? 'Análise concluída.'),
-    findings,
-  };
-}
+import { callOpenAICompatible, callAnthropicCompatible, parseFindingsJson } from './client';
 
 type RawResult = { summary: string; findings: AnalysisFinding[] };
-
-// ---------------------------------------------------------------------------
-// Cliente genérico compatível com OpenAI (OpenRouter, agy local na VPS, etc.)
-// ---------------------------------------------------------------------------
-async function analyzeOpenAICompatible(
-  input: AnalysisInput,
-  opts: { apiKey: string; baseURL: string; model: string; headers?: Record<string, string> }
-): Promise<RawResult> {
-  const client = new OpenAI({
-    apiKey: opts.apiKey,
-    baseURL: opts.baseURL,
-    defaultHeaders: opts.headers,
-    timeout: LLM_TIMEOUT_MS,
-    maxRetries: 0,
-  });
-
-  const completion = await client.chat.completions.create({
-    model: opts.model,
-    temperature: 0.1,
-    response_format: { type: 'json_object' },
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: buildUserPrompt(input) },
-    ],
-  });
-
-  const content = completion.choices?.[0]?.message?.content ?? '';
-  return parseJsonResponse(content);
-}
-
-// ---------------------------------------------------------------------------
-// Cliente Anthropic Claude (chave própria ou instância na VPS via baseURL)
-// ---------------------------------------------------------------------------
-async function analyzeAnthropicCompatible(
-  input: AnalysisInput,
-  opts: { apiKey: string; model: string; baseURL?: string }
-): Promise<RawResult> {
-  // Com baseURL customizado (proxy VPS local), o SDK deve mandar a chave como
-  // "Authorization: Bearer" (authToken) — é o que o cli-proxy espera. Sem
-  // baseURL (API oficial da Anthropic), usa o esquema nativo dela ("x-api-key",
-  // via apiKey).
-  const client = new Anthropic({
-    ...(opts.baseURL ? { authToken: opts.apiKey } : { apiKey: opts.apiKey }),
-    baseURL: opts.baseURL,
-    timeout: LLM_TIMEOUT_MS,
-    maxRetries: 0,
-  });
-
-  const message = await client.messages.create({
-    model: opts.model,
-    max_tokens: 4096,
-    temperature: 0.1,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: buildUserPrompt(input) }],
-  });
-
-  const block = message.content?.[0];
-  const text = block && block.type === 'text' ? block.text : '';
-  return parseJsonResponse(text);
-}
 
 // ---------------------------------------------------------------------------
 // Fallback determinístico (sem chaves) — mantém a demonstração funcional.
@@ -172,10 +65,10 @@ function buildCandidates(input: AnalysisInput): Candidate[] {
     'HTTP-Referer': process.env.AUTH_URL ?? 'https://codereview.abacusai.app',
     'X-Title': 'AI Code Review',
   };
+  const systemPrompt = SYSTEM_PROMPT;
+  const userPrompt = buildUserPrompt(input);
 
   if (mode === 'BYOK') {
-    // Modo BYOK: respeita o provedor/modelo escolhido pela organização usando a
-    // chave própria. O usuário paga o provedor diretamente (sem créditos).
     const provider = input.provider;
     const model = input.model || DEFAULT_MODELS[provider];
     if (provider === 'ANTHROPIC' && anthropicKey) {
@@ -184,7 +77,10 @@ function buildCandidates(input: AnalysisInput): Candidate[] {
         provider: 'ANTHROPIC',
         model,
         billable: false,
-        run: () => analyzeAnthropicCompatible(input, { apiKey: anthropicKey, model }),
+        run: () =>
+          callAnthropicCompatible({ apiKey: anthropicKey, model }, systemPrompt, userPrompt).then(
+            parseFindingsJson
+          ),
       });
     } else if (provider === 'OPENROUTER' && openRouterKey) {
       candidates.push({
@@ -193,21 +89,14 @@ function buildCandidates(input: AnalysisInput): Candidate[] {
         model,
         billable: false,
         run: () =>
-          analyzeOpenAICompatible(input, {
-            apiKey: openRouterKey,
-            baseURL: 'https://openrouter.ai/api/v1',
-            model,
-            headers: openRouterHeaders,
-          }),
+          callOpenAICompatible(
+            { apiKey: openRouterKey, baseURL: 'https://openrouter.ai/api/v1', model, headers: openRouterHeaders },
+            systemPrompt,
+            userPrompt
+          ).then(parseFindingsJson),
       });
     }
   } else {
-    // Modo SERVICE (padrão): IA do próprio serviço.
-    // 1) OpenRouter gratuito, com failover automático entre os modelos free
-    //    curados. Por fim, "openrouter/free" — o próprio roteador da
-    //    OpenRouter escolhe entre TODOS os modelos gratuitos disponíveis no
-    //    momento, cobrindo casos em que a lista curada esteja indisponível
-    //    (modelo descontinuado, rate-limit, etc.) sem depender de créditos.
     if (openRouterKey) {
       for (const model of [...freeModelOrder(input.model), 'openrouter/free']) {
         candidates.push({
@@ -219,18 +108,15 @@ function buildCandidates(input: AnalysisInput): Candidate[] {
           model,
           billable: false,
           run: () =>
-            analyzeOpenAICompatible(input, {
-              apiKey: openRouterKey,
-              baseURL: 'https://openrouter.ai/api/v1',
-              model,
-              headers: openRouterHeaders,
-            }),
+            callOpenAICompatible(
+              { apiKey: openRouterKey, baseURL: 'https://openrouter.ai/api/v1', model, headers: openRouterHeaders },
+              systemPrompt,
+              userPrompt
+            ).then(parseFindingsJson),
         });
       }
     }
 
-    // 2) Fallback premium hospedado na VPS (Claude com licença mensal e/ou agy).
-    //    Só é acionado quando a organização tem créditos (recurso pago).
     if (input.hasCredits) {
       const claude = getServiceClaudeConfig();
       if (claude) {
@@ -240,11 +126,11 @@ function buildCandidates(input: AnalysisInput): Candidate[] {
           model: claude.model,
           billable: true,
           run: () =>
-            analyzeAnthropicCompatible(input, {
-              apiKey: claude.apiKey,
-              baseURL: claude.baseURL,
-              model: claude.model,
-            }),
+            callAnthropicCompatible(
+              { apiKey: claude.apiKey, baseURL: claude.baseURL, model: claude.model },
+              systemPrompt,
+              userPrompt
+            ).then(parseFindingsJson),
         });
       }
       const agy = getServiceAgyConfig();
@@ -255,17 +141,16 @@ function buildCandidates(input: AnalysisInput): Candidate[] {
           model: agy.model,
           billable: true,
           run: () =>
-            analyzeOpenAICompatible(input, {
-              apiKey: agy.apiKey,
-              baseURL: agy.baseURL,
-              model: agy.model,
-            }),
+            callOpenAICompatible(
+              { apiKey: agy.apiKey, baseURL: agy.baseURL, model: agy.model },
+              systemPrompt,
+              userPrompt
+            ).then(parseFindingsJson),
         });
       }
     }
   }
 
-  // Fallback final: análise simulada (nunca falha).
   candidates.push({
     label: 'Análise simulada (sem provedor de IA)',
     provider: input.provider,
@@ -306,7 +191,6 @@ export async function runAnalysis(input: AnalysisInput): Promise<AnalysisResult>
     }
   }
 
-  // Inalcançável (mock nunca falha), mas mantém o tipo satisfeito.
   const fallback = analyzeWithMock(input);
   return {
     ...fallback,
