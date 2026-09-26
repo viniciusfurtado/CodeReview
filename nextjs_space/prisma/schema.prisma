@@ -1,7 +1,6 @@
 generator client {
     provider = "prisma-client-js"
-    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
-    output = "/home/ubuntu/code-review-saas-preview/nextjs_space/node_modules/.prisma/client"
+    binaryTargets = ["native"]
 }
 
 datasource db {
@@ -25,7 +24,7 @@ model Organization {
   llmMode               LlmMode  @default(SERVICE)
   llmProvider           LlmProvider @default(OPENROUTER)
   llmModel              String?
-  aiCredits             Int      @default(0)
+  aiCredits             Int      @default(15)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
@@ -33,6 +32,8 @@ model Organization {
   repositories         Repository[]
   reviewRules          ReviewRule[]
   notificationChannels NotificationChannel[]
+  creditTransactions   CreditTransaction[]
+  laudos               Laudo[]
 }
 
 model User {
@@ -48,6 +49,7 @@ model User {
   memberships OrganizationMember[]
   accounts    Account[]
   sessions    Session[]
+  laudos      Laudo[]
 }
 
 model OrganizationMember {
@@ -84,6 +86,7 @@ model Repository {
 
   organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   reviews      PullRequestReview[]
+  laudos       Laudo[]
 
   @@index([organizationId])
 }
@@ -136,9 +139,34 @@ model NotificationChannel {
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deliveries   NotificationDelivery[]
 
   @@index([organizationId])
+}
+
+enum NotificationDeliveryStatus {
+  SUCCESS
+  FAILED
+}
+
+// Histórico de envios de notificação — uma linha por tentativa (canal x
+// review). Retenção: aplicada pelo dispatcher (pruneNotificationHistory em
+// lib/notifications), não pelo schema — até 100 por organização e até 90
+// dias, o que for mais restritivo.
+model NotificationDelivery {
+  id        String                     @id @default(cuid())
+  channelId String
+  reviewId  String
+  status    NotificationDeliveryStatus
+  error     String?                    @db.Text
+  createdAt DateTime                   @default(now())
+
+  channel NotificationChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  review  PullRequestReview   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@index([channelId])
+  @@index([reviewId])
 }
 
 // ---------------------------------------------------------------------------
@@ -203,16 +231,20 @@ model PullRequestReview {
   llmProvider     String?
   llmModel        String?
   postedToGithub  Boolean      @default(false)
-  githubReviewId  Int?
+  githubReviewId  BigInt?
   postError       String?      @db.Text
+  prMerged        Boolean      @default(false)
+  prClosedAt      DateTime?
   queuedAt        DateTime?
   startedAt       DateTime?
   completedAt     DateTime?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
-  repository Repository      @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
-  findings   ReviewFinding[]
+  repository         Repository          @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  findings           ReviewFinding[]
+  creditTransactions CreditTransaction[]
+  notificationDeliveries NotificationDelivery[]
 
   @@unique([repositoryId, prNumber])
   @@index([repositoryId])
@@ -233,6 +265,97 @@ model ReviewFinding {
   review PullRequestReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
 
   @@index([reviewId])
+}
+
+// ---------------------------------------------------------------------------
+// Laudos (relatório de qualidade de repositório inteiro, com dupla checagem)
+// ---------------------------------------------------------------------------
+
+enum LaudoSource {
+  REGISTERED
+  PUBLIC_URL
+}
+
+// Confiança do apontamento: CONFIRMED_BOTH quando a IA gratuita já havia
+// encontrado o mesmo problema e o Claude confirmou na dupla checagem;
+// CLAUDE_ONLY quando só o Claude identificou (etapa gratuita indisponível,
+// ou o Claude descartou o apontamento original e reescreveu/adicionou o seu).
+enum LaudoFindingSource {
+  CONFIRMED_BOTH
+  CLAUDE_ONLY
+}
+
+enum LaudoArtifactType {
+  PDF
+  MARKDOWN
+}
+
+model Laudo {
+  id                String       @id @default(cuid())
+  organizationId    String
+  requestedByUserId String
+  source            LaudoSource
+  repositoryId      String?
+  publicRepoUrl     String?
+  branch            String?
+  status            ReviewStatus @default(PENDING)
+  attempts          Int          @default(0)
+  error             String?      @db.Text
+  summary           String?      @db.Text
+  scoreLetter       String?
+  scoreNumber       Int?
+  filesScanned      Int          @default(0)
+  filesSkipped      Int          @default(0)
+  truncated         Boolean      @default(false)
+  usedClaudeOnly    Boolean      @default(false)
+  freeModel         String?
+  claudeModel       String?
+  queuedAt          DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  requestedBy        User                @relation(fields: [requestedByUserId], references: [id], onDelete: Cascade)
+  repository         Repository?         @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  findings           LaudoFinding[]
+  artifacts          LaudoArtifact[]
+  creditTransactions CreditTransaction[]
+
+  @@index([organizationId])
+  @@index([status])
+}
+
+model LaudoFinding {
+  id         String             @id @default(cuid())
+  laudoId    String
+  filePath   String
+  line       Int?
+  severity   FindingSeverity    @default(WARNING)
+  title      String
+  message    String             @db.Text
+  suggestion String?            @db.Text
+  source     LaudoFindingSource @default(CLAUDE_ONLY)
+  createdAt  DateTime           @default(now())
+
+  laudo Laudo @relation(fields: [laudoId], references: [id], onDelete: Cascade)
+
+  @@index([laudoId])
+}
+
+model LaudoArtifact {
+  id        String            @id @default(cuid())
+  laudoId   String
+  type      LaudoArtifactType
+  fileName  String
+  filePath  String
+  sizeBytes Int
+  createdAt DateTime          @default(now())
+
+  laudo Laudo @relation(fields: [laudoId], references: [id], onDelete: Cascade)
+
+  @@index([laudoId])
 }
 
 // ---------------------------------------------------------------------------
@@ -276,4 +399,32 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+enum CreditTransactionType {
+  PURCHASE
+  USAGE
+  ADJUSTMENT
+}
+
+// Histórico de créditos por organização. USAGE é gravado automaticamente
+// junto do decremento em lib/queue.ts; PURCHASE/ADJUSTMENT ficam com a
+// estrutura pronta para quando existir um fluxo real de compra/billing.
+model CreditTransaction {
+  id             String                @id @default(cuid())
+  organizationId String
+  type           CreditTransactionType
+  amount         Int
+  reviewId       String?
+  laudoId        String?
+  note           String?
+  createdAt      DateTime              @default(now())
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  review       PullRequestReview? @relation(fields: [reviewId], references: [id], onDelete: SetNull)
+  laudo        Laudo?             @relation(fields: [laudoId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([reviewId])
+  @@index([laudoId])
 }

@@ -5,6 +5,7 @@ import { PrismaAdapter } from '@auth/prisma-adapter';
 import type { Adapter, AdapterUser } from 'next-auth/adapters';
 import { prisma } from '@/lib/db';
 import { ensureDemoData } from '@/lib/demo';
+import { ensureDefaultRules } from '@/lib/default-rules';
 
 const GITHUB_API = 'https://api.github.com';
 
@@ -27,6 +28,8 @@ interface GithubOrg {
 function buildAdapter(): Adapter {
   const adapter = PrismaAdapter(prisma) as Adapter;
 
+  // O NextAuth espera um campo "image" no usuário; nosso schema usa
+  // "avatarUrl". Mapeamos aqui para não precisar duplicar a coluna.
   adapter.createUser = async (data: AdapterUser): Promise<AdapterUser> => {
     const u = data as unknown as GithubProfileUser;
     const user = await prisma.user.upsert({
@@ -45,7 +48,20 @@ function buildAdapter(): Adapter {
         avatarUrl: u.avatarUrl ?? null,
       },
     });
-    return { ...user, emailVerified: null } as unknown as AdapterUser;
+    return {
+      ...user,
+      image: user.avatarUrl,
+      emailVerified: null,
+    } as unknown as AdapterUser;
+  };
+
+  // Usado em todo login de usuário JÁ existente (o caminho mais comum) —
+  // sem esse override, o adapter padrão nunca preenche "image".
+  const originalGetUserByAccount = adapter.getUserByAccount?.bind(adapter);
+  adapter.getUserByAccount = async (accountRef) => {
+    const user = await originalGetUserByAccount?.(accountRef);
+    if (!user) return null;
+    return { ...user, image: (user as any).avatarUrl ?? user.image };
   };
 
   return adapter;
@@ -79,6 +95,11 @@ async function upsertOrgMembership(params: {
   avatarUrl: string | null;
   isPersonal: boolean;
 }): Promise<void> {
+  const existed = await prisma.organization.findUnique({
+    where: { githubOrgId: params.githubOrgId },
+    select: { id: true },
+  });
+
   const org = await prisma.organization.upsert({
     where: { githubOrgId: params.githubOrgId },
     update: {
@@ -96,6 +117,19 @@ async function upsertOrgMembership(params: {
     },
   });
 
+  // Organização nova: registra no histórico os créditos de avaliação
+  // concedidos automaticamente no cadastro (valor vem do default do schema).
+  if (!existed && org.aiCredits > 0) {
+    await prisma.creditTransaction.create({
+      data: {
+        organizationId: org.id,
+        type: 'ADJUSTMENT',
+        amount: org.aiCredits,
+        note: 'Créditos de avaliação concedidos no cadastro',
+      },
+    });
+  }
+
   await prisma.organizationMember.upsert({
     where: {
       userId_organizationId: {
@@ -110,6 +144,8 @@ async function upsertOrgMembership(params: {
       role: 'OWNER',
     },
   });
+
+  await ensureDefaultRules(org.id);
 }
 
 async function syncUserOrganizations(
@@ -177,13 +213,42 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       authorization: {
         params: { scope: 'read:user user:email read:org' },
       },
-      profile(profile: any): GithubProfileUser {
+      async profile(profile: any, tokens: any): Promise<GithubProfileUser> {
+        // A API do GitHub só retorna profile.email quando o usuário tem um
+        // e-mail público. Para a maioria dos usuários (e-mail privado) é
+        // preciso buscar separadamente em /user/emails.
+        let email: string | null = profile.email ?? null;
+        if (!email && tokens?.access_token) {
+          try {
+            const res = await fetch('https://api.github.com/user/emails', {
+              headers: {
+                Authorization: `Bearer ${tokens.access_token}`,
+                Accept: 'application/vnd.github+json',
+              },
+            });
+            if (res.ok) {
+              const emails = (await res.json()) as {
+                email: string;
+                primary: boolean;
+                verified: boolean;
+              }[];
+              const chosen =
+                emails.find((e) => e.primary && e.verified) ??
+                emails.find((e) => e.verified) ??
+                emails[0];
+              email = chosen?.email ?? null;
+            }
+          } catch {
+            // Best-effort — segue sem e-mail se a chamada falhar.
+          }
+        }
+
         return {
           id: String(profile.id),
           githubId: String(profile.id),
           githubLogin: profile.login,
           name: profile.name ?? null,
-          email: profile.email ?? null,
+          email,
           avatarUrl: profile.avatar_url ?? null,
         };
       },
@@ -211,6 +276,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user }: any) {
       if (user) {
         token.userId = user.id;
+        token.githubLogin = user.githubLogin ?? null;
       }
       if (token.userId && !token.primaryOrgId) {
         const membership = await prisma.organizationMember.findFirst({
@@ -226,6 +292,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user) {
         session.user.userId = (token.userId as string) ?? null;
         session.user.primaryOrgId = (token.primaryOrgId as string) ?? null;
+        session.user.githubLogin = (token.githubLogin as string) ?? null;
       }
       return session;
     },

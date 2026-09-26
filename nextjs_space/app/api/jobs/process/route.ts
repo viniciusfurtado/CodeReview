@@ -1,13 +1,15 @@
 import { NextResponse } from 'next/server';
 import { processPendingReviews } from '@/lib/queue';
+import { processPendingLaudos } from '@/lib/laudo/queue';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 /**
- * Endpoint para um agendador (cron) processar revisões pendentes/reprocessar
- * as que falharam. Protegido por um segredo compartilhado (WORKER_SECRET)
- * enviado no cabeçalho Authorization: Bearer <segredo>.
+ * Endpoint para um agendador (cron) processar revisões e laudos pendentes.
+ * Protegido por um segredo compartilhado (WORKER_SECRET) enviado no
+ * cabeçalho Authorization: Bearer <segredo>. As duas filas são independentes
+ * (modelos diferentes), então processam em paralelo dentro do mesmo hit.
  */
 export async function POST(req: Request) {
   const secret = process.env.WORKER_SECRET;
@@ -23,6 +25,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
   }
 
-  const processed = await processPendingReviews();
-  return NextResponse.json({ ok: true, processed });
+  const [processedReviews, processedLaudos] = await Promise.all([
+    processPendingReviews(),
+    processPendingLaudos(),
+  ]);
+  return NextResponse.json({ ok: true, processed: processedReviews, processedLaudos });
 }

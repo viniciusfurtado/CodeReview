@@ -18,12 +18,25 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { SafeDate } from '@/components/safe-format';
+import { GradeBadge } from '@/components/grade-badge';
+import { gradeForReview } from '@/lib/review-grade';
+import { ReviewAutoRefresh } from '@/components/review-auto-refresh';
+import { ACTIVE_REVIEW_STATUSES } from '@/lib/review-status';
 
 export const dynamic = 'force-dynamic';
 
-function statusBadge(status: string) {
+function statusBadge(
+  status: string,
+  counts: { errorCount: number; warningCount: number; infoCount: number }
+) {
   switch (status) {
     case 'COMPLETED':
+      if (counts.errorCount > 0 || counts.warningCount > 0) {
+        return { variant: 'warning' as const, label: 'Aguardando Ajustes' };
+      }
+      if (counts.infoCount > 0) {
+        return { variant: 'secondary' as const, label: 'Ajustes Sugeridos' };
+      }
       return { variant: 'success' as const, label: 'Concluída' };
     case 'IN_PROGRESS':
       return { variant: 'warning' as const, label: 'Em andamento' };
@@ -32,6 +45,15 @@ function statusBadge(status: string) {
     default:
       return { variant: 'outline' as const, label: 'Na fila' };
   }
+}
+
+function prLifecycleBadge(
+  review: { status: string; prClosedAt: Date | null; prMerged: boolean }
+): { variant: 'success' | 'secondary' | 'outline'; label: string } | null {
+  if (review.status !== 'COMPLETED') return null;
+  if (!review.prClosedAt) return { variant: 'outline', label: 'Aguardando Merge' };
+  if (review.prMerged) return { variant: 'success', label: 'Mergeado' };
+  return { variant: 'secondary', label: 'Fechada sem merge' };
 }
 
 function severityVariant(sev: string) {
@@ -60,8 +82,13 @@ export default async function ReviewsPage() {
     orderBy: { updatedAt: 'desc' },
   });
 
+  const hasActiveReview = reviews.some((r) =>
+    ACTIVE_REVIEW_STATUSES.includes(r.status as string)
+  );
+
   return (
     <div className="mx-auto max-w-5xl space-y-8">
+      <ReviewAutoRefresh active={hasActiveReview} />
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Revisões</h1>
         <p className="text-muted-foreground">
@@ -83,13 +110,21 @@ export default async function ReviewsPage() {
 
       <div className="space-y-3">
         {reviews.map((review) => {
-          const badge = statusBadge(review.status as string);
           const errorCount = review.findings.filter(
             (f) => (f.severity as string) === 'ERROR'
           ).length;
           const warnCount = review.findings.filter(
             (f) => (f.severity as string) === 'WARNING'
           ).length;
+          const infoCount = review.findings.filter(
+            (f) => (f.severity as string) === 'INFO'
+          ).length;
+          const badge = statusBadge(review.status as string, {
+            errorCount,
+            warningCount: warnCount,
+            infoCount,
+          });
+          const lifecycleBadge = prLifecycleBadge(review);
           return (
             <Link key={review.id} href={`/dashboard/reviews/${review.id}`}>
               <Card className="transition-colors hover:border-primary/50">
@@ -119,7 +154,7 @@ export default async function ReviewsPage() {
                             alt={review.author}
                             width={16}
                             height={16}
-                            className="rounded-full"
+                            className="h-4 w-4 rounded-full"
                           />
                         ) : null}
                         {review.author}
@@ -131,6 +166,9 @@ export default async function ReviewsPage() {
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
+                    {review.status === 'COMPLETED' && (
+                      <GradeBadge grade={gradeForReview({ errorCount, warningCount: warnCount })} />
+                    )}
                     {errorCount > 0 && (
                       <Badge variant="destructive" className="gap-1">
                         <AlertCircle className="h-3 w-3" />
@@ -141,6 +179,11 @@ export default async function ReviewsPage() {
                       <Badge variant="warning">{warnCount}</Badge>
                     )}
                     <Badge variant={badge.variant}>{badge.label}</Badge>
+                    {lifecycleBadge && (
+                      <Badge variant={lifecycleBadge.variant}>
+                        {lifecycleBadge.label}
+                      </Badge>
+                    )}
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </div>
                 </CardContent>

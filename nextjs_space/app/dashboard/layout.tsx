@@ -9,15 +9,18 @@ import {
   Settings,
   FolderGit2,
   GitPullRequest,
+  FileCheck2,
 } from 'lucide-react';
 import { auth } from '@/auth';
 import { SignOutButton } from '@/components/sign-out-button';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { MobileNav } from '@/components/mobile-nav';
 
 const navItems = [
   { href: '/dashboard', label: 'Visão Geral', icon: LayoutDashboard },
   { href: '/dashboard/repositories', label: 'Repositórios', icon: FolderGit2 },
   { href: '/dashboard/reviews', label: 'Revisões', icon: GitPullRequest },
+  { href: '/dashboard/laudos', label: 'Laudo', icon: FileCheck2 },
   { href: '/dashboard/rules', label: 'Regras', icon: ScrollText },
   { href: '/dashboard/notifications', label: 'Notificações', icon: Bell },
   { href: '/dashboard/settings', label: 'Configurações', icon: Settings },
@@ -35,6 +38,8 @@ export default async function DashboardLayout({
 
   const name = session.user?.name;
   const image = session.user?.image;
+  const githubLogin = (session.user as any)?.githubLogin as string | null;
+  const displayName = name ?? (githubLogin ? `@${githubLogin}` : 'Usuário');
 
   return (
     <div className="flex min-h-screen">
@@ -70,19 +75,20 @@ export default async function DashboardLayout({
             </div>
           </div>
           <div className="ml-auto flex items-center gap-3">
+            <ThemeToggle />
             {image ? (
               <Image
                 src={image}
-                alt={name ?? 'Avatar'}
+                alt={displayName}
                 width={32}
                 height={32}
-                className="rounded-full"
+                className="h-8 w-8 rounded-full"
               />
             ) : (
               <div className="h-8 w-8 rounded-full bg-secondary" />
             )}
             <span className="hidden text-sm font-medium sm:inline">
-              {name ?? 'Usuário'}
+              {displayName}
             </span>
             <SignOutButton />
           </div>

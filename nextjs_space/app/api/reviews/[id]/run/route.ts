@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUserId, getUserOrgIds } from '@/lib/dashboard';
-import { processReview } from '@/lib/queue';
+import { enqueueReview, processReview } from '@/lib/queue';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -41,17 +41,17 @@ export async function POST(
     );
   }
 
-  try {
-    await processReview(id);
-  } catch (err) {
-    return NextResponse.json(
-      {
-        error:
-          err instanceof Error ? err.message : 'Falha ao processar análise.',
-      },
-      { status: 500 }
-    );
-  }
+  // Marca como PENDING de imediato (feedback rápido na UI) e processa em
+  // segundo plano — mesmo padrão do webhook, evita segurar a resposta HTTP
+  // pela duração inteira da chamada de IA.
+  await enqueueReview(id);
+  after(async () => {
+    try {
+      await processReview(id);
+    } catch (err) {
+      console.error(`[api] falha ao processar análise (reviewId=${id}):`, err);
+    }
+  });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, status: 'queued' });
 }

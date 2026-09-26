@@ -10,12 +10,14 @@ import {
   AlertTriangle,
   Info,
   Lightbulb,
+  ChevronDown,
 } from 'lucide-react';
 import { prisma } from '@/lib/db';
 import { getCurrentUserId, getUserOrgIds } from '@/lib/dashboard';
 import {
   Card,
   CardContent,
+  CardFooter,
   CardHeader,
   CardTitle,
   CardDescription,
@@ -23,12 +25,30 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { SafeDate } from '@/components/safe-format';
 import { RunAnalysisButton } from '@/components/run-analysis-button';
+import { GradeBadge } from '@/components/grade-badge';
+import { gradeForReview } from '@/lib/review-grade';
+import { ReviewAutoRefresh } from '@/components/review-auto-refresh';
+import { ACTIVE_REVIEW_STATUSES } from '@/lib/review-status';
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from '@/components/ui/collapsible';
 
 export const dynamic = 'force-dynamic';
 
-function statusBadge(status: string) {
+function statusBadge(
+  status: string,
+  counts: { errorCount: number; warningCount: number; infoCount: number }
+) {
   switch (status) {
     case 'COMPLETED':
+      if (counts.errorCount > 0 || counts.warningCount > 0) {
+        return { variant: 'warning' as const, label: 'Aguardando Ajustes' };
+      }
+      if (counts.infoCount > 0) {
+        return { variant: 'secondary' as const, label: 'Ajustes Sugeridos' };
+      }
       return { variant: 'success' as const, label: 'Concluída' };
     case 'IN_PROGRESS':
       return { variant: 'warning' as const, label: 'Em andamento' };
@@ -37,6 +57,15 @@ function statusBadge(status: string) {
     default:
       return { variant: 'outline' as const, label: 'Na fila' };
   }
+}
+
+function prLifecycleBadge(
+  review: { status: string; prClosedAt: Date | null; prMerged: boolean }
+): { variant: 'success' | 'secondary' | 'outline'; label: string } | null {
+  if (review.status !== 'COMPLETED') return null;
+  if (!review.prClosedAt) return { variant: 'outline', label: 'Aguardando Merge' };
+  if (review.prMerged) return { variant: 'success', label: 'Mergeado' };
+  return { variant: 'secondary', label: 'Fechada sem merge' };
 }
 
 function severityMeta(sev: string) {
@@ -74,6 +103,7 @@ export default async function ReviewDetailPage({
     include: {
       repository: { include: { organization: true } },
       findings: { orderBy: { createdAt: 'asc' } },
+      creditTransactions: { where: { type: 'USAGE' } },
     },
   });
 
@@ -81,9 +111,34 @@ export default async function ReviewDetailPage({
     notFound();
   }
 
-  const badge = statusBadge(review.status as string);
-  const canRun =
-    review.status === 'PENDING' || review.status === 'FAILED';
+  const errorCount = review.findings.filter(
+    (f) => (f.severity as string) === 'ERROR'
+  ).length;
+  const warningCount = review.findings.filter(
+    (f) => (f.severity as string) === 'WARNING'
+  ).length;
+  const infoCount = review.findings.filter(
+    (f) => (f.severity as string) === 'INFO'
+  ).length;
+  const badge = statusBadge(review.status as string, {
+    errorCount,
+    warningCount,
+    infoCount,
+  });
+  const lifecycleBadge = prLifecycleBadge(review);
+  const creditsUsed = review.creditTransactions.reduce(
+    (sum, t) => sum + t.amount,
+    0
+  );
+  // Reexecutável sempre que não estiver no estado "limpo" (Concluída sem
+  // apontamentos) nem em andamento — cobre PENDING, FAILED e COMPLETED com
+  // qualquer apontamento pendente (Aguardando Ajustes / Ajustes Sugeridos).
+  const isCleanCompleted =
+    review.status === 'COMPLETED' &&
+    errorCount === 0 &&
+    warningCount === 0 &&
+    infoCount === 0;
+  const canRun = review.status !== 'IN_PROGRESS' && !isCleanCompleted;
 
   // Não expor o motor de IA interno (provedor/modelo) do modo SERVICE ao
   // cliente — apenas indicar se foi a IA gerenciada pelo serviço ou a chave
@@ -99,6 +154,9 @@ export default async function ReviewDetailPage({
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
+      <ReviewAutoRefresh
+        active={ACTIVE_REVIEW_STATUSES.includes(review.status as string)}
+      />
       <Link
         href="/dashboard/reviews"
         className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -129,7 +187,7 @@ export default async function ReviewDetailPage({
                       alt={review.author}
                       width={16}
                       height={16}
-                      className="rounded-full"
+                      className="h-4 w-4 rounded-full"
                     />
                   ) : null}
                   {review.author}
@@ -140,9 +198,16 @@ export default async function ReviewDetailPage({
                 />
               </CardDescription>
             </div>
-            <div className="flex shrink-0 flex-col items-end gap-2">
+            <div className="flex shrink-0 items-center gap-2">
+              {review.status === 'COMPLETED' && (
+                <GradeBadge grade={gradeForReview({ errorCount, warningCount })} />
+              )}
               <Badge variant={badge.variant}>{badge.label}</Badge>
-              {canRun && <RunAnalysisButton reviewId={review.id} />}
+              {lifecycleBadge && (
+                <Badge variant={lifecycleBadge.variant}>
+                  {lifecycleBadge.label}
+                </Badge>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -175,43 +240,68 @@ export default async function ReviewDetailPage({
                   : ''}
               </p>
             )}
-            {review.status === 'COMPLETED' && (
-              <div className="flex items-center gap-2 pt-1">
-                {review.postedToGithub ? (
-                  <>
-                    <Badge variant="success" className="text-xs">
-                      ✅ Postado no GitHub
-                    </Badge>
-                    {review.githubReviewId && (
-                      <a
-                        href={`https://github.com/${review.repository.fullName}/pull/${review.prNumber}#pullrequestreview-${review.githubReviewId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-primary underline hover:no-underline"
-                      >
-                        Ver no GitHub ↗
-                      </a>
-                    )}
-                  </>
-                ) : review.postError ? (
-                  <span className="text-xs text-destructive">
-                    ⚠️ Falha ao postar no GitHub: {review.postError}
-                  </span>
-                ) : (
-                  <Badge variant="outline" className="text-xs">
-                    Somente interno
-                  </Badge>
-                )}
-              </div>
+            {creditsUsed > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {creditsUsed} crédito{creditsUsed === 1 ? '' : 's'} usado
+                {creditsUsed === 1 ? '' : 's'} nesta revisão
+              </p>
             )}
           </CardContent>
         )}
+        <CardFooter className="flex items-center justify-between gap-3 border-t border-border pt-4">
+          <div className="flex flex-wrap items-center gap-2">
+            {review.status === 'COMPLETED' && review.postedToGithub && (
+              <>
+                <Badge variant="success" className="text-xs">
+                  ✅ Postado no GitHub
+                </Badge>
+                {review.githubReviewId ? (
+                  <a
+                    href={`https://github.com/${review.repository.fullName}/pull/${review.prNumber}#pullrequestreview-${review.githubReviewId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary underline hover:no-underline"
+                  >
+                    Ver no GitHub ↗
+                  </a>
+                ) : null}
+              </>
+            )}
+            {review.status === 'COMPLETED' && !review.postedToGithub && review.postError && (
+              <span className="text-xs text-destructive">
+                ⚠️ Falha ao postar no GitHub: {review.postError}
+              </span>
+            )}
+            {review.status === 'COMPLETED' && !review.postedToGithub && !review.postError && (
+              <Badge variant="outline" className="text-xs">
+                Somente interno
+              </Badge>
+            )}
+            {(review.status !== 'COMPLETED' || !review.postedToGithub) && (
+              <a
+                href={`https://github.com/${review.repository.fullName}/pull/${review.prNumber}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-primary underline hover:no-underline"
+              >
+                Abrir PR no GitHub ↗
+              </a>
+            )}
+          </div>
+          {canRun && <RunAnalysisButton reviewId={review.id} />}
+        </CardFooter>
       </Card>
 
-      <div>
-        <h2 className="mb-3 text-lg font-semibold">
-          Apontamentos ({review.findings.length})
-        </h2>
+      <Collapsible defaultOpen>
+        <CollapsibleTrigger asChild>
+          <button className="mb-3 flex w-full items-center justify-between gap-2 text-left [&[data-state=open]>svg]:rotate-180">
+            <h2 className="text-lg font-semibold">
+              Apontamentos ({review.findings.length})
+            </h2>
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform" />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
         {review.findings.length === 0 && (
           <Card>
             <CardContent className="p-6 text-sm text-muted-foreground">
@@ -260,7 +350,8 @@ export default async function ReviewDetailPage({
             );
           })}
         </div>
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 }

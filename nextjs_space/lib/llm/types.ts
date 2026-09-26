@@ -83,12 +83,20 @@ export const OPENROUTER_FREE_MODELS: OpenRouterFreeModel[] = [
     recommended: true,
   },
   {
-    id: 'deepseek/deepseek-r1:free',
-    label: 'DeepSeek R1 (gratuito)',
+    id: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+    label: 'NVIDIA Nemotron 3 Ultra 550B (gratuito)',
   },
   {
-    id: 'qwen/qwen-2.5-coder-32b-instruct:free',
-    label: 'Qwen 2.5 Coder 32B (gratuito)',
+    id: 'qwen/qwen3.8-27b:free',
+    label: 'Qwen 3.8 27B (gratuito)',
+  },
+  {
+    id: 'google/gemma-4-26b-a4b-it:free',
+    label: 'Google Gemma 4 26B (gratuito)',
+  },
+  {
+    id: 'poolside/laguna-s-2.1:free',
+    label: 'Poolside Laguna S 2.1 (gratuito)',
   },
 ];
 
