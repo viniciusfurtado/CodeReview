@@ -155,21 +155,34 @@ export async function processLaudo(laudoId: string): Promise<void> {
 
     // -----------------------------------------------------------------------
     // Etapa 4: gerar e salvar os artefatos (PDF + Markdown).
+    // Falha aqui NÃO reverte o Laudo já concluído (análise, nota e cobrança
+    // já estão persistidas e finais neste ponto) — evita reprocessar (e
+    // recobrar) o pipeline inteiro só porque a geração de artefato falhou.
     // -----------------------------------------------------------------------
-    const savedFindings = await prisma.laudoFinding.findMany({
-      where: { laudoId },
-      orderBy: { createdAt: 'asc' },
-    });
-    const laudoWithRelations = await prisma.laudo.findUniqueOrThrow({
-      where: { id: laudoId },
-      include: { repository: true, organization: true },
-    });
+    try {
+      const savedFindings = await prisma.laudoFinding.findMany({
+        where: { laudoId },
+        orderBy: { createdAt: 'asc' },
+      });
+      const laudoWithRelations = await prisma.laudo.findUniqueOrThrow({
+        where: { id: laudoId },
+        include: { repository: true, organization: true },
+      });
 
-    const pdfBuffer = await generateLaudoPdf(laudoWithRelations, savedFindings);
-    const markdownText = generateLaudoMarkdown(laudoWithRelations, savedFindings);
+      const pdfBuffer = await generateLaudoPdf(laudoWithRelations, savedFindings);
+      const markdownText = generateLaudoMarkdown(laudoWithRelations, savedFindings);
 
-    await saveLaudoArtifact(laudoId, 'PDF', `laudo-${laudoId}.pdf`, pdfBuffer);
-    await saveLaudoArtifact(laudoId, 'MARKDOWN', `laudo-${laudoId}.md`, Buffer.from(markdownText, 'utf8'));
+      await saveLaudoArtifact(laudoId, 'PDF', `laudo-${laudoId}.pdf`, pdfBuffer);
+      await saveLaudoArtifact(laudoId, 'MARKDOWN', `laudo-${laudoId}.md`, Buffer.from(markdownText, 'utf8'));
+    } catch (artifactError: any) {
+      console.error(`[laudo] falha ao gerar artefatos do laudo ${laudoId}:`, artifactError);
+      await prisma.laudo.update({
+        where: { id: laudoId },
+        data: {
+          error: `Falha ao gerar artefatos: ${String(artifactError?.message ?? artifactError).slice(0, 500)}`,
+        },
+      });
+    }
   } catch (error: any) {
     const current = await prisma.laudo.findUnique({ where: { id: laudoId }, select: { attempts: true } });
     const attempts = current?.attempts ?? MAX_ATTEMPTS;
