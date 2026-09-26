@@ -26,17 +26,21 @@ export async function enqueueLaudo(laudoId: string): Promise<void> {
 }
 
 export async function processLaudo(laudoId: string): Promise<void> {
+  // Claim atômica: usa o where do updateMany como compare-and-swap para
+  // evitar que duas chamadas concorrentes (ex.: cron sobreposto ou dois
+  // cliques em "Executar novamente") passem ambas por um check e só depois
+  // façam o update, o que cobraria créditos em dobro pelo mesmo laudo.
+  const claim = await prisma.laudo.updateMany({
+    where: { id: laudoId, status: { in: ['PENDING', 'FAILED'] } },
+    data: { status: 'IN_PROGRESS', startedAt: new Date(), attempts: { increment: 1 } },
+  });
+  if (claim.count === 0) return; // já IN_PROGRESS, COMPLETED, ou não existe — nada a fazer
+
   const laudo = await prisma.laudo.findUnique({
     where: { id: laudoId },
     include: { organization: true, repository: true },
   });
-  if (!laudo) return;
-  if (laudo.status === 'IN_PROGRESS') return;
-
-  await prisma.laudo.update({
-    where: { id: laudoId },
-    data: { status: 'IN_PROGRESS', startedAt: new Date(), attempts: { increment: 1 } },
-  });
+  if (!laudo) return; // apagado entre a claim e a busca — extremamente improvável
 
   let cloneDir: string | null = null;
 
@@ -160,6 +164,7 @@ export async function processLaudo(laudoId: string): Promise<void> {
     // recobrar) o pipeline inteiro só porque a geração de artefato falhou.
     // -----------------------------------------------------------------------
     try {
+      await prisma.laudoArtifact.deleteMany({ where: { laudoId } });
       const savedFindings = await prisma.laudoFinding.findMany({
         where: { laudoId },
         orderBy: { createdAt: 'asc' },

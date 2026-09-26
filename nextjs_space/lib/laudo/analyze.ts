@@ -99,8 +99,18 @@ export async function analyzeBatch(
     message: f.message,
   }));
   const userPrompt = buildFusionPrompt(batch, freeFindings, rules);
+  // Um lote pode ter até 8 arquivos de até 20.000 caracteres cada — um prompt
+  // bem maior que uma única diff de PR, capaz de gerar uma resposta bem maior
+  // também. Os defaults de callAnthropicCompatible (45s / 4096 tokens) foram
+  // dimensionados para o caso de PR única e truncariam/expirariam aqui.
   const raw = await callAnthropicCompatible(
-    { apiKey: claude.apiKey, baseURL: claude.baseURL, model: claude.model },
+    {
+      apiKey: claude.apiKey,
+      baseURL: claude.baseURL,
+      model: claude.model,
+      timeoutMs: 180_000,
+      maxTokens: 8192,
+    },
     LAUDO_FUSION_SYSTEM_PROMPT,
     userPrompt
   );

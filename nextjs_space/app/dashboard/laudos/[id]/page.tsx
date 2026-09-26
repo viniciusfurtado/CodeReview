@@ -153,13 +153,24 @@ export default async function LaudoDetailPage({
               <p className="whitespace-pre-line text-sm text-muted-foreground">{laudo.summary}</p>
             </div>
           )}
-          {laudo.error && (
+          {laudo.error && laudo.status !== 'COMPLETED' && (
             <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3">
               <div className="mb-1 flex items-center gap-1 text-xs font-semibold text-destructive">
                 <AlertCircle className="h-3 w-3" />
                 Erro na última execução (tentativas: {laudo.attempts})
               </div>
               <p className="text-sm text-muted-foreground">{laudo.error}</p>
+            </div>
+          )}
+          {laudo.error && laudo.status === 'COMPLETED' && (
+            <div className="rounded-md border border-amber-300/50 bg-amber-100/50 p-3 dark:border-amber-900/40 dark:bg-amber-900/10">
+              <div className="mb-1 flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-400">
+                <AlertTriangle className="h-3 w-3" />
+                Artefatos indisponíveis
+              </div>
+              <p className="text-sm text-muted-foreground">
+                O laudo foi concluído normalmente, mas houve uma falha ao gerar o PDF/Markdown.
+              </p>
             </div>
           )}
           {laudo.status === 'COMPLETED' && (

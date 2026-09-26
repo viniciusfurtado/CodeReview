@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { LAUDO_CREDIT_COST } from '@/lib/laudo/constants';
 
 export function RunLaudoButton({ laudoId }: { laudoId: string }) {
   const router = useRouter();
@@ -38,7 +39,7 @@ export function RunLaudoButton({ laudoId }: { laudoId: string }) {
   return (
     <Button onClick={handleRun} disabled={running} size="sm">
       {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-      Executar novamente
+      Executar novamente ({LAUDO_CREDIT_COST} créditos)
     </Button>
   );
 }
