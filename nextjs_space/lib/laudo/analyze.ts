@@ -31,7 +31,7 @@ export interface RepositoryAnalysisResult {
 
 const OPENROUTER_HEADERS = {
   'HTTP-Referer': process.env.AUTH_URL ?? 'https://codereview.app',
-  'X-Title': 'AI Code Review — Laudo',
+  'X-Title': 'AI Code Review - Laudo',
 };
 
 interface FreeStageResult {
