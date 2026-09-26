@@ -1,6 +1,7 @@
 import Image from 'next/image';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { CheckCircle2, XCircle, FolderGit2, Rocket } from 'lucide-react';
+import { CheckCircle2, XCircle, FolderGit2, Rocket, FileCheck2 } from 'lucide-react';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import {
@@ -74,6 +75,17 @@ export default async function DashboardHomePage() {
       })
     : [];
 
+  const laudoCount = orgIds.length
+    ? await prisma.laudo.count({ where: { organizationId: { in: orgIds } } })
+    : 0;
+  const lastCompletedLaudo = orgIds.length
+    ? await prisma.laudo.findFirst({
+        where: { organizationId: { in: orgIds }, status: 'COMPLETED' },
+        orderBy: { completedAt: 'desc' },
+        select: { scoreLetter: true, scoreNumber: true, completedAt: true },
+      })
+    : null;
+
   const buckets = new Map<string, DayBucket>();
   for (let i = 0; i < 14; i++) {
     const d = new Date(since);
@@ -139,6 +151,28 @@ export default async function DashboardHomePage() {
           <CardContent>
             <DashboardReviewsChart data={chartData} />
           </CardContent>
+        </Card>
+      )}
+
+      {laudoCount > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <FileCheck2 className="h-5 w-5 text-primary" />
+                <CardTitle className="text-base">Laudos</CardTitle>
+              </div>
+              <Link href="/dashboard/laudos" className="text-xs text-primary underline hover:no-underline">
+                Ver todos ↗
+              </Link>
+            </div>
+            <CardDescription>
+              {laudoCount} laudo(s) gerado(s)
+              {lastCompletedLaudo?.scoreLetter
+                ? ` · último: nota ${lastCompletedLaudo.scoreLetter} (${lastCompletedLaudo.scoreNumber}/100)`
+                : ''}
+            </CardDescription>
+          </CardHeader>
         </Card>
       )}
 

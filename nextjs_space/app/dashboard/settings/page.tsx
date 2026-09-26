@@ -60,6 +60,13 @@ export default async function SettingsPage() {
               repository: { select: { fullName: true } },
             },
           },
+          laudo: {
+            select: {
+              source: true,
+              publicRepoUrl: true,
+              repository: { select: { fullName: true } },
+            },
+          },
         },
       },
     },
@@ -210,6 +217,12 @@ export default async function SettingsPage() {
                                 <div className="font-medium">
                                   {tx.review.repository.fullName} #
                                   {tx.review.prNumber}
+                                </div>
+                              ) : tx.laudo ? (
+                                <div className="font-medium">
+                                  Laudo · {tx.laudo.source === 'REGISTERED'
+                                    ? tx.laudo.repository?.fullName
+                                    : tx.laudo.publicRepoUrl}
                                 </div>
                               ) : (
                                 <div className="font-medium text-muted-foreground">
