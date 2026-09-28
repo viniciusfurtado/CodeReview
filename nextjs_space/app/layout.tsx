@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { DM_Sans, Plus_Jakarta_Sans, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { Providers } from '@/components/providers';
-import Script from 'next/script';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +13,7 @@ export const metadata: Metadata = {
   title: 'AI Code Review',
   description:
     'Revisão de código automatizada com inteligência artificial para seus Pull Requests.',
-  metadataBase: new URL(process.env.NEXTAUTH_URL || 'http://localhost:3000'),
+  metadataBase: new URL(process.env.AUTH_URL || 'http://localhost:3000'),
   icons: {
     icon: '/favicon.svg',
     shortcut: '/favicon.svg',
@@ -33,10 +32,8 @@ export default function RootLayout({
     <html
       lang="pt-BR"
       className={`${dmSans.variable} ${plusJakartaSans.variable} ${jetbrainsMono.variable}`}
+      suppressHydrationWarning
     >
-      <head>
-        <Script src="https://apps.abacus.ai/chatllm/appllm-lib.js" strategy="beforeInteractive" />
-      </head>
       <body className="min-h-screen font-sans antialiased">
         <Providers>{children}</Providers>
       </body>

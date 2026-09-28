@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { validateWebhookSignature } from '@/lib/github/webhook';
 import { fetchPrDiff } from '@/lib/github/pr';
 import { processReview } from '@/lib/queue';
+import { ensureDefaultRules } from '@/lib/default-rules';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -38,6 +39,11 @@ async function upsertOrgFromInstallation(
   installationId: bigint | null,
   installationSuspended: boolean
 ): Promise<string> {
+  const existed = await prisma.organization.findUnique({
+    where: { githubOrgId: String(account.id) },
+    select: { id: true },
+  });
+
   const org = await prisma.organization.upsert({
     where: { githubOrgId: String(account.id) },
     update: {
@@ -56,6 +62,19 @@ async function upsertOrgFromInstallation(
       installationSuspended,
     },
   });
+
+  if (!existed && org.aiCredits > 0) {
+    await prisma.creditTransaction.create({
+      data: {
+        organizationId: org.id,
+        type: 'ADJUSTMENT',
+        amount: org.aiCredits,
+        note: 'Créditos de avaliação concedidos no cadastro',
+      },
+    });
+  }
+
+  await ensureDefaultRules(org.id);
   return org.id;
 }
 
@@ -96,12 +115,43 @@ interface PullRequestPayload {
     title: string;
     user?: { login?: string; avatar_url?: string };
     head?: { ref?: string; sha?: string };
+    merged?: boolean;
   };
 }
 
 const PR_ACTIONS = ['opened', 'synchronize', 'reopened', 'ready_for_review'];
 
+/**
+ * PR fechada (com ou sem merge): só atualiza o ciclo de vida da review já
+ * existente — não dispara reanálise.
+ */
+async function handlePullRequestClosed(payload: PullRequestPayload): Promise<void> {
+  const repo = await prisma.repository.findUnique({
+    where: { githubRepoId: BigInt(payload.repository.id) },
+  });
+  if (!repo) return;
+
+  await prisma.pullRequestReview
+    .update({
+      where: {
+        repositoryId_prNumber: { repositoryId: repo.id, prNumber: payload.pull_request.number },
+      },
+      data: {
+        prMerged: payload.pull_request.merged === true,
+        prClosedAt: new Date(),
+      },
+    })
+    .catch(() => {
+      // Sem review registrada para essa PR (nunca chegou a ser analisada) — nada a atualizar.
+    });
+}
+
 async function handlePullRequest(payload: PullRequestPayload): Promise<void> {
+  if (payload.action === 'closed') {
+    await handlePullRequestClosed(payload);
+    return;
+  }
+
   if (!PR_ACTIONS.includes(payload.action)) return;
 
   const repo = await prisma.repository.findUnique({
@@ -142,6 +192,8 @@ async function handlePullRequest(payload: PullRequestPayload): Promise<void> {
       queuedAt: new Date(),
       error: null,
       attempts: 0,
+      prMerged: false,
+      prClosedAt: null,
     },
     create: {
       repositoryId: repo.id,

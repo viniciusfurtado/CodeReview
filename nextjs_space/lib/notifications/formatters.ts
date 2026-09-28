@@ -65,12 +65,17 @@ export function formatSlack(data: ReviewNotificationData): object {
     },
   ];
 
+  // Blocks do Slack têm limite de 3000 caracteres por texto — passar disso
+  // faz o Slack rejeitar a mensagem inteira (400), derrubando a notificação
+  // inteira em silêncio.
+  const SLACK_TEXT_LIMIT = 2900;
+
   if (data.status === 'COMPLETED') {
     blocks.push({
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `${severitySummary(data)}\n\n${data.summary}`,
+        text: `${severitySummary(data)}\n\n${data.summary}`.slice(0, SLACK_TEXT_LIMIT),
       },
     });
   } else if (data.error) {
@@ -78,7 +83,7 @@ export function formatSlack(data: ReviewNotificationData): object {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `❌ *Erro:* ${data.error}`,
+        text: `❌ *Erro:* ${data.error}`.slice(0, SLACK_TEXT_LIMIT),
       },
     });
   }
@@ -226,8 +231,8 @@ export function formatEmailHtml(data: ReviewNotificationData): string {
   }
 
   <p>
-    <a href="${data.dashboardUrl}" style="display:inline-block;padding:8px 16px;background:#2563eb;color:white;border-radius:6px;text-decoration:none;margin-right:8px">📊 Dashboard</a>
-    <a href="${data.githubPrUrl}" style="display:inline-block;padding:8px 16px;background:#24292f;color:white;border-radius:6px;text-decoration:none">🔗 GitHub</a>
+    <a href="${data.dashboardUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:8px 16px;background:#2563eb;color:white;border-radius:6px;text-decoration:none;margin-right:8px">📊 Dashboard</a>
+    <a href="${data.githubPrUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:8px 16px;background:#24292f;color:white;border-radius:6px;text-decoration:none">🔗 GitHub</a>
   </p>
 
   <hr style="border:none;border-top:1px solid #e5e5e5;margin:20px 0">

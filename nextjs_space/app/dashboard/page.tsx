@@ -1,6 +1,7 @@
 import Image from 'next/image';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { CheckCircle2, XCircle, FolderGit2, Rocket } from 'lucide-react';
+import { CheckCircle2, XCircle, FolderGit2, Rocket, FileCheck2 } from 'lucide-react';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import {
@@ -12,6 +13,10 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { InstallAppButton } from '@/components/install-app-button';
+import {
+  DashboardReviewsChart,
+  type DayBucket,
+} from '@/components/dashboard-reviews-chart';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,6 +49,69 @@ export default async function DashboardHomePage() {
     timeZone: 'UTC',
   });
 
+  const orgIds = organizations.map((o: any) => o.id);
+  const shortDateFormatter = new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: 'UTC',
+  });
+
+  const since = new Date();
+  since.setUTCDate(since.getUTCDate() - 13);
+  since.setUTCHours(0, 0, 0, 0);
+
+  const recentReviews = orgIds.length
+    ? await prisma.pullRequestReview.findMany({
+        where: {
+          repository: { organizationId: { in: orgIds } },
+          status: { in: ['COMPLETED', 'FAILED'] },
+          updatedAt: { gte: since },
+        },
+        select: {
+          status: true,
+          updatedAt: true,
+          findings: { select: { severity: true } },
+        },
+      })
+    : [];
+
+  const laudoCount = orgIds.length
+    ? await prisma.laudo.count({ where: { organizationId: { in: orgIds } } })
+    : 0;
+  const lastCompletedLaudo = orgIds.length
+    ? await prisma.laudo.findFirst({
+        where: { organizationId: { in: orgIds }, status: 'COMPLETED' },
+        orderBy: { completedAt: 'desc' },
+        select: { scoreLetter: true, scoreNumber: true, completedAt: true },
+      })
+    : null;
+
+  const buckets = new Map<string, DayBucket>();
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(since);
+    d.setUTCDate(d.getUTCDate() + i);
+    const key = d.toISOString().slice(0, 10);
+    buckets.set(key, { date: shortDateFormatter.format(d), good: 0, warning: 0, critical: 0 });
+  }
+
+  for (const review of recentReviews) {
+    const key = review.updatedAt.toISOString().slice(0, 10);
+    const bucket = buckets.get(key);
+    if (!bucket) continue;
+
+    if (review.status === 'FAILED') {
+      bucket.critical++;
+      continue;
+    }
+    const hasIssue = review.findings.some(
+      (f: { severity: string }) => f.severity === 'ERROR' || f.severity === 'WARNING'
+    );
+    if (hasIssue) bucket.warning++;
+    else bucket.good++;
+  }
+
+  const chartData = Array.from(buckets.values());
+
   return (
     <div className="mx-auto max-w-5xl space-y-8">
       <div>
@@ -72,6 +140,42 @@ export default async function DashboardHomePage() {
         </Card>
       )}
 
+      {hasAnyInstallation && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Revisões — últimos 14 dias</CardTitle>
+            <CardDescription>
+              Volume diário de revisões por resultado.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DashboardReviewsChart data={chartData} />
+          </CardContent>
+        </Card>
+      )}
+
+      {laudoCount > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <FileCheck2 className="h-5 w-5 text-primary" />
+                <CardTitle className="text-base">Laudos</CardTitle>
+              </div>
+              <Link href="/dashboard/laudos" className="text-xs text-primary underline hover:no-underline">
+                Ver todos ↗
+              </Link>
+            </div>
+            <CardDescription>
+              {laudoCount} laudo(s) gerado(s)
+              {lastCompletedLaudo?.scoreLetter
+                ? ` · último: nota ${lastCompletedLaudo.scoreLetter} (${lastCompletedLaudo.scoreNumber}/100)`
+                : ''}
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2">
         {organizations.map((org: any) => {
           const isInstalled = org.installationId !== null;
@@ -86,7 +190,7 @@ export default async function DashboardHomePage() {
                         alt={org.githubLogin}
                         width={40}
                         height={40}
-                        className="rounded-md"
+                        className="h-10 w-10 rounded-md"
                       />
                     ) : (
                       <div className="h-10 w-10 rounded-md bg-secondary" />

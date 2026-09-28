@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Trash2, Loader2, ScrollText } from 'lucide-react';
+import { Plus, Trash2, Pencil, Loader2, ScrollText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -23,7 +23,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Select,
@@ -70,14 +69,34 @@ export function RulesManager({ orgs }: { orgs: OrgWithRules[] }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [editingRule, setEditingRule] = useState<RuleDTO | null>(null);
 
-  const [form, setForm] = useState({
+  const emptyForm = {
     organizationId: orgs[0]?.id ?? '',
     name: '',
     description: '',
     instruction: '',
     severity: 'WARNING',
-  });
+  };
+  const [form, setForm] = useState(emptyForm);
+
+  function openCreateDialog() {
+    setEditingRule(null);
+    setForm(emptyForm);
+    setOpen(true);
+  }
+
+  function openEditDialog(rule: RuleDTO) {
+    setEditingRule(rule);
+    setForm({
+      organizationId: '',
+      name: rule.name,
+      description: rule.description ?? '',
+      instruction: rule.instruction,
+      severity: rule.severity,
+    });
+    setOpen(true);
+  }
 
   async function handleToggle(rule: RuleDTO, next: boolean) {
     setBusyId(rule.id);
@@ -111,7 +130,7 @@ export function RulesManager({ orgs }: { orgs: OrgWithRules[] }) {
     }
   }
 
-  async function handleCreate() {
+  async function handleSave() {
     if (!form.name.trim() || !form.instruction.trim()) {
       toast({
         title: 'Preencha nome e instrução',
@@ -121,24 +140,33 @@ export function RulesManager({ orgs }: { orgs: OrgWithRules[] }) {
     }
     setSaving(true);
     try {
-      const res = await fetch('/api/rules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
+      const res = editingRule
+        ? await fetch(`/api/rules/${editingRule.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: form.name,
+              description: form.description,
+              instruction: form.instruction,
+              severity: form.severity,
+            }),
+          })
+        : await fetch('/api/rules', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(form),
+          });
       if (!res.ok) throw new Error();
-      toast({ title: 'Regra criada' });
+      toast({ title: editingRule ? 'Regra atualizada' : 'Regra criada' });
       setOpen(false);
-      setForm({
-        organizationId: orgs[0]?.id ?? '',
-        name: '',
-        description: '',
-        instruction: '',
-        severity: 'WARNING',
-      });
+      setEditingRule(null);
+      setForm(emptyForm);
       router.refresh();
     } catch {
-      toast({ title: 'Erro ao criar regra', variant: 'destructive' });
+      toast({
+        title: editingRule ? 'Erro ao atualizar regra' : 'Erro ao criar regra',
+        variant: 'destructive',
+      });
     } finally {
       setSaving(false);
     }
@@ -156,21 +184,27 @@ export function RulesManager({ orgs }: { orgs: OrgWithRules[] }) {
           </p>
         </div>
         {hasOrgs && (
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="h-4 w-4" /> Nova regra
-              </Button>
-            </DialogTrigger>
+          <Dialog
+            open={open}
+            onOpenChange={(v) => {
+              setOpen(v);
+              if (!v) setEditingRule(null);
+            }}
+          >
+            <Button className="gap-2" onClick={openCreateDialog}>
+              <Plus className="h-4 w-4" /> Nova regra
+            </Button>
             <DialogContent className="sm:max-w-lg">
               <DialogHeader>
-                <DialogTitle>Nova regra de revisão</DialogTitle>
+                <DialogTitle>
+                  {editingRule ? 'Editar regra de revisão' : 'Nova regra de revisão'}
+                </DialogTitle>
                 <DialogDescription>
                   A instrução é enviada à IA para orientar a análise do código.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
-                {orgs.length > 1 && (
+                {orgs.length > 1 && !editingRule && (
                   <div className="space-y-2">
                     <Label>Organização</Label>
                     <Select
@@ -248,14 +282,17 @@ export function RulesManager({ orgs }: { orgs: OrgWithRules[] }) {
               <DialogFooter>
                 <Button
                   variant="outline"
-                  onClick={() => setOpen(false)}
+                  onClick={() => {
+                    setOpen(false);
+                    setEditingRule(null);
+                  }}
                   disabled={saving}
                 >
                   Cancelar
                 </Button>
-                <Button onClick={handleCreate} disabled={saving} className="gap-2">
+                <Button onClick={handleSave} disabled={saving} className="gap-2">
                   {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-                  Criar regra
+                  {editingRule ? 'Salvar alterações' : 'Criar regra'}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -320,6 +357,15 @@ export function RulesManager({ orgs }: { orgs: OrgWithRules[] }) {
                     onCheckedChange={(v) => handleToggle(rule, v)}
                     aria-label="Ativar regra"
                   />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    disabled={busyId === rule.id}
+                    onClick={() => openEditDialog(rule)}
+                    aria-label="Editar regra"
+                  >
+                    <Pencil className="h-4 w-4 text-muted-foreground" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"

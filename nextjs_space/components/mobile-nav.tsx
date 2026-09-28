@@ -11,6 +11,7 @@ import {
   Settings,
   FolderGit2,
   GitPullRequest,
+  FileCheck2,
   Menu,
 } from 'lucide-react';
 import {
@@ -26,6 +27,7 @@ const navItems = [
   { href: '/dashboard', label: 'Visão Geral', icon: LayoutDashboard },
   { href: '/dashboard/repositories', label: 'Repositórios', icon: FolderGit2 },
   { href: '/dashboard/reviews', label: 'Revisões', icon: GitPullRequest },
+  { href: '/dashboard/laudos', label: 'Laudo', icon: FileCheck2 },
   { href: '/dashboard/rules', label: 'Regras', icon: ScrollText },
   { href: '/dashboard/notifications', label: 'Notificações', icon: Bell },
   { href: '/dashboard/settings', label: 'Configurações', icon: Settings },

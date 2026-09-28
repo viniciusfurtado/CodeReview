@@ -14,6 +14,9 @@ import os
 import time
 import uuid
 from typing import Optional
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
